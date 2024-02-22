@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+	.prose-boring {
+		@apply
+		prose
+		prose-slate
+		prose-2xl
+		lg:prose-base
+		text-4xl
+		leading-relaxed
+		max-w-none
+		prose-pre:rounded-none
+		prose-headings:bg-amber-100
+		prose-headings:text-slate-800 
+		prose-headings:font-normal
+		prose-headings:p-2
+		prose-headings:w-max
+		prose-headings:font-serif
+		dark:prose-invert
+		dark:prose-headings:bg-indigo-900
+		dark:prose-headings:text-slate-300
+	}
+}
