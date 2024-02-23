@@ -20,6 +20,20 @@ struct Args {
     generate: bool,
 }
 
+struct Content {
+    title: String,
+    date: Option<String>,
+    description: Option<String>,
+    tags: Option<Vec<String>>,
+    content: Option<String>,
+}
+
+impl Content {
+    pub fn new() -> Self {
+        Self::new()
+    }
+}
+
 fn temp_gen_md() -> Vec<String> {
     let mut contents: Vec<String> = Vec::new();
     for md_file in glob("themes/boring/content/blog/*.md").expect("error") {
@@ -108,6 +122,23 @@ async fn start_development_server() {
         .expect("cannot start axum development server");
 }
 
+async fn parse_markdown_header(raw_md: &str) {
+    let mut md_content = Content::new();
+    let mut md_chars = raw_md.chars().peekable();
+    while let Some(&c) = md_chars.peek() {
+        match c {
+            '-' => {
+                let a: String = md_chars.by_ref().take_while(|&c| c != '\n').collect();
+                println!("{:?}", a);
+                md_chars.next();
+            }
+            _ => {
+                md_chars.next();
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Args::parse();
@@ -122,8 +153,7 @@ async fn main() {
         // let theme = std::env::var("THEME").expect("no env var set");
         // render_and_write_html(theme.as_str()).await;
         for i in temp_gen_md() {
-            println!("{}", markdown::to_html(i.as_str()));
-            println!("__________________");
+            parse_markdown_header(i.as_str()).await;
         }
     }
 }
