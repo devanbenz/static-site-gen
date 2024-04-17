@@ -1,11 +1,9 @@
+mod markdown;
+mod render;
+
+use crate::render::render_and_write_html;
 use axum::Router;
-use clap::builder::Str;
 use clap::Parser;
-use glob::glob;
-use std::fs::File;
-use std::io::{Read, Write};
-use std::process;
-use tera::{Context, Tera};
 use tower_http::services::fs::ServeDir;
 
 #[derive(Parser, Debug)]
@@ -20,96 +18,8 @@ struct Args {
     generate: bool,
 }
 
-struct Content {
-    title: String,
-    date: Option<String>,
-    description: Option<String>,
-    tags: Option<Vec<String>>,
-    content: Option<String>,
-}
-
-impl Content {
-    pub fn new() -> Self {
-        Self::new()
-    }
-}
-
-fn temp_gen_md() -> Vec<String> {
-    let mut contents: Vec<String> = Vec::new();
-    for md_file in glob("themes/boring/content/blog/*.md").expect("error") {
-        match md_file {
-            Ok(path) => {
-                let file = File::open(path);
-                let mut file_contents = String::new();
-                file.expect("could not open file for reading")
-                    .read_to_string(&mut file_contents)
-                    .expect("could not read contents");
-                contents.push(file_contents);
-            }
-            Err(e) => {
-                eprintln!("error reading files: {}", e);
-                process::exit(1);
-            }
-        }
-    }
-
-    contents
-}
-
-fn generate_markdown_from_files() -> Vec<String> {
-    let mut contents: Vec<String> = Vec::new();
-    for md_file in glob("markdown/**/*.md").expect("could not read markdown files") {
-        match md_file {
-            Ok(path) => {
-                let file = File::open(path);
-                let mut file_contents = String::new();
-                file.expect("could not open file for reading")
-                    .read_to_string(&mut file_contents)
-                    .expect("could not read contents");
-                contents.push(file_contents);
-            }
-            Err(e) => {
-                eprintln!("error reading files: {}", e);
-                process::exit(1);
-            }
-        }
-    }
-
-    contents
-}
-
-async fn render_and_write_html(theme: &str) {
-    let mut context = Context::new();
-    let md_contents = generate_markdown_from_files();
-
-    for content in md_contents {
-        context.insert("content", &markdown::to_html(content.as_str()));
-    }
-
-    context.insert("title", "Devan Benz");
-    context.insert("homepage_title", "whateverforever.computer");
-    context.insert("homepage_subtitle", "Hey there I'm Devan Benz");
-
-    let tera = match Tera::new(format!("themes/{}/templates/**/*.html", theme).as_str()) {
-        Ok(t) => t,
-        Err(e) => {
-            eprintln!("Parser error(s): {}", e);
-            process::exit(1);
-        }
-    };
-
-    let rendered_html = tera
-        .render("index.html", &context)
-        .expect("cannot create templated html");
-
-    let mut file = File::create(format!("themes/{}/static/index.html", theme))
-        .expect("cannot create index.html file");
-    file.write_all(rendered_html.as_bytes())
-        .expect("could not write data to html file");
-}
-
 async fn start_development_server() {
-    let serve_dir = ServeDir::new("themes/boring/static");
+    let serve_dir = ServeDir::new("assets/");
 
     let app = Router::new().nest_service("/", serve_dir);
 
@@ -120,23 +30,6 @@ async fn start_development_server() {
     axum::serve(listener, app)
         .await
         .expect("cannot start axum development server");
-}
-
-async fn parse_markdown_header(raw_md: &str) {
-    let mut md_content = Content::new();
-    let mut md_chars = raw_md.chars().peekable();
-    while let Some(&c) = md_chars.peek() {
-        match c {
-            '-' => {
-                let a: String = md_chars.by_ref().take_while(|&c| c != '\n').collect();
-                println!("{:?}", a);
-                md_chars.next();
-            }
-            _ => {
-                md_chars.next();
-            }
-        }
-    }
 }
 
 #[tokio::main]
@@ -150,10 +43,7 @@ async fn main() {
     }
 
     if cli.generate {
-        // let theme = std::env::var("THEME").expect("no env var set");
-        // render_and_write_html(theme.as_str()).await;
-        for i in temp_gen_md() {
-            parse_markdown_header(i.as_str()).await;
-        }
+        let theme = std::env::var("THEME").expect("no env var set");
+        render_and_write_html(theme.as_str()).await;
     }
 }
