@@ -166,8 +166,9 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
   price_class = "PriceClass_100"
 
   ordered_cache_behavior {
-    path_pattern     = "blog/*"
-    target_origin_id = "whateverforever.computer"
+    path_pattern        = "blog/*"
+    target_origin_id    = "whateverforever.computer"
+    default_root_object = "index.html"
 
     forwarded_values {
       query_string = false
