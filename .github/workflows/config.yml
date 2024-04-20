@@ -80,15 +80,9 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      - name: LS
-        run: |
-          ls
-      - name: LS assets
-        run: |
-          ls assets
       - name: Sync index.html to S3 bucket
         run: |
-          aws s3 sync /assets/index.html s3://whateverforever.computer/index.html
+          aws s3 cp /assets/index.html s3://whateverforever.computer/index.html
       - name: Sync static files to S3 bucket
         run: |
           aws s3 sync /assets/static s3://whateverforever.computer/static --delete
