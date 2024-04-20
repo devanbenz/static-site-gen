@@ -74,5 +74,18 @@ jobs:
         run: make up
       - name: generate static assets
         run: make gen
-      - name: list static assets
-        run: tree
+      - name: Setup AWS CLI
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Sync index.html to S3 bucket
+        run: |
+          aws s3 sync build/assets/index.html s3://whateverforever.computer/index.html
+      - name: Sync static files to S3 bucket
+        run: |
+          aws s3 sync build/assets/static s3://whateverforever.computer/static --delete
+      - name: Sync blog files to S3 bucket
+        run: |
+          aws s3 sync build/assets/blog s3://whateverforever.computer/blog --delete
