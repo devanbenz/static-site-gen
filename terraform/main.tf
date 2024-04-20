@@ -118,7 +118,7 @@ resource "aws_route53_record" "cert_validation" {
 
 resource "aws_cloudfront_distribution" "s3_distribution" {
   origin {
-    domain_name = aws_s3_bucket.whatever_forever.website_endpoint
+    domain_name = aws_s3_bucket.whatever_forever.bucket_regional_domain_name
     origin_id   = "whateverforever.computer"
 
     s3_origin_config {
