@@ -91,4 +91,4 @@ jobs:
           aws s3 sync assets/blog s3://whateverforever.computer/blog --delete
       - name: Sync font files to S3 bucket
         run: |
-          aws s3 sync fonts s3://whateverforever.computer/fonts --delete 
+          aws s3 sync assets/fonts s3://whateverforever.computer/fonts --delete 
