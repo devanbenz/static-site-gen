@@ -10,5 +10,9 @@ jobs:
     steps:
       - name: checkout repo
         uses: actions/checkout@main
-      - name: run make up
+      - name: build ssg src
         run: make up
+      - name: generate static assets
+        run: make gen
+      - name: list static assets
+        run: tree
