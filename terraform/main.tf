@@ -131,7 +131,7 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
   comment             = "S3 Hosting Distribution"
   default_root_object = "index.html"
 
-  aliases = ["example.com"]
+  aliases = ["whateverforever.computer"]
 
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD"]
