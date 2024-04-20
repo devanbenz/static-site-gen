@@ -8,12 +8,13 @@ description: "Howdy, world!"
 # Who am I?
 
 Hey, Hi, Hello. And. Most of all, greetings. I'm Devan Benz. A person on earth who happens to be a software engineer.
-I have spent most of my life trying to find my place and the wonderful world of technology has really been pretty comfy
+I have spent most of my life trying to find my place and the wonderful world of technology has really been pretty comfy,
 so I decided to stick with it.
 
 # Why am I?
 
-The path one takes is often treacherous and overwhelming. I am writing this blog to inspire myself and others. Kind of a
+The path one takes is often treacherous and overwhelming. I am writing this blog to push myself, improve my writing
+skills, and just leave a trace of myself somewhere on the web. Kind of a
 journal to
 have a place for spilling out my thoughts, goals, and technical musings. It's overwhelming putting yourself out there
 but this is a step in the right direction. *Please* do not take anything and everything I say as matter of fact.
