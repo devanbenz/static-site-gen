@@ -82,10 +82,10 @@ jobs:
           aws-region: us-east-1
       - name: Sync index.html to S3 bucket
         run: |
-          aws s3 sync build/assets/index.html s3://whateverforever.computer/index.html
+          aws s3 sync assets/index.html s3://whateverforever.computer/index.html
       - name: Sync static files to S3 bucket
         run: |
-          aws s3 sync build/assets/static s3://whateverforever.computer/static --delete
+          aws s3 sync assets/static s3://whateverforever.computer/static --delete
       - name: Sync blog files to S3 bucket
         run: |
-          aws s3 sync build/assets/blog s3://whateverforever.computer/blog --delete
+          aws s3 sync assets/blog s3://whateverforever.computer/blog --delete
