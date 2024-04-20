@@ -8,5 +8,7 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - run: make up
-      - run: make gen
+      - name: checkout repo
+        uses: actions/checkout@main
+      - name: run make up
+        run: make up
