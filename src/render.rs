@@ -116,7 +116,7 @@ pub async fn render_and_write_html(theme: &str) {
                 .get("title")
                 .expect("could not get ctx")
                 .to_string(),
-            permalink: format!("/blog/{}", blog_info.title_slug),
+            permalink: format!("/blog/{}/index.html", blog_info.title_slug),
         })
     }
 
