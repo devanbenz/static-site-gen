@@ -20,6 +20,9 @@
                 <a class="flex my-12 lg:my-4 text-4xl lg:text-base" href="{{ page.permalink | safe }}">
                     {{ page.title }}
                     <div class="ml-2 hidden lg:inline">
+                        {{ page.date | date(format="%Y-%m-%d") }}
+                    </div>
+                    <div class="ml-2 hidden lg:inline">
                         <i class="las la-arrow-right"></i>
                     </div>
                 </a>
@@ -28,6 +31,11 @@
         </ul>
     </div>
     {% endif %}
+    <a class="font-sans text-gray-500 hover:text-gray-400
+                        dark:text-slate-500 dark:hover:text-slate-400 transition"
+       href="https://whateverforever.computer/index.html">
+        <i class="las la-arrow-left"></i> Back
+    </a>
 </div>
 {% endblock content %}
 
