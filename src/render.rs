@@ -1,7 +1,9 @@
+use std::cmp::Ordering;
 use std::fs::File;
 use std::io::Write;
 use std::process;
 
+use chrono::prelude::*;
 use frontmatter::parse_and_find_content;
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
@@ -19,7 +21,64 @@ struct Section {
 struct Page {
     title: String,
     permalink: String,
+    date: Option<String>,
 }
+
+impl Ord for Page {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.date.cmp(&other.date)
+    }
+}
+
+impl PartialEq for Page {
+    fn eq(&self, other: &Self) -> bool {
+        self.date == other.date
+    }
+}
+
+impl PartialOrd for Page {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+
+    fn lt(&self, other: &Self) -> bool {
+        let this_date = self.date.clone();
+        let other_date = other.date.clone();
+        let this_date_parsed: DateTime<Utc> = this_date.expect("no date set").parse().unwrap();
+        let other_date_parsed: DateTime<Utc> = other_date.expect("no date set").parse().unwrap();
+
+        this_date_parsed < other_date_parsed
+    }
+
+    fn le(&self, other: &Self) -> bool {
+        let this_date = self.date.clone();
+        let other_date = other.date.clone();
+        let this_date_parsed: DateTime<Utc> = this_date.expect("no date set").parse().unwrap();
+        let other_date_parsed: DateTime<Utc> = other_date.expect("no date set").parse().unwrap();
+
+        this_date_parsed <= other_date_parsed
+    }
+
+    fn gt(&self, other: &Self) -> bool {
+        let this_date = self.date.clone();
+        let other_date = other.date.clone();
+        let this_date_parsed: DateTime<Utc> = this_date.expect("no date set").parse().unwrap();
+        let other_date_parsed: DateTime<Utc> = other_date.expect("no date set").parse().unwrap();
+
+        this_date_parsed > other_date_parsed
+    }
+
+    fn ge(&self, other: &Self) -> bool {
+        let this_date = self.date.clone();
+        let other_date = other.date.clone();
+        let this_date_parsed: DateTime<Utc> = this_date.expect("no date set").parse().unwrap();
+        let other_date_parsed: DateTime<Utc> = other_date.expect("no date set").parse().unwrap();
+
+        this_date_parsed >= other_date_parsed
+    }
+}
+
+impl Eq for Page {}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct BlogInformation {
@@ -89,7 +148,11 @@ pub async fn render_and_write_html(theme: &str) {
         blog_post_context.insert("title", blog_info.title.as_str());
         blog_post_context.insert(
             "date",
-            &blog_info.date.expect("could not generate date").as_str(),
+            &blog_info
+                .date
+                .clone()
+                .expect("could not generate date")
+                .as_str(),
         );
         blog_post_context.insert(
             "content",
@@ -117,6 +180,7 @@ pub async fn render_and_write_html(theme: &str) {
                 .expect("could not get ctx")
                 .to_string(),
             permalink: format!("/blog/{}/index.html", blog_info.title_slug),
+            date: blog_info.date,
         })
     }
 
@@ -127,6 +191,8 @@ pub async fn render_and_write_html(theme: &str) {
     let mut file = File::create("assets/index.html").expect("cannot create index.html file");
     file.write_all(rendered_home_html.as_bytes())
         .expect("could not write data to html file");
+
+    section.pages.sort_by(|a, b| b.cmp(a));
 
     let rendered_posts_html = template
         .render(

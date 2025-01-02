@@ -15,14 +15,18 @@
         <ul>
             {% for page in pages %}
             <li class="text-slate-900 hover:text-slate-600
-                            dark:text-slate-400 hover:dark:text-slate-300
-                            transition">
-                <a class="flex my-12 lg:my-4 text-4xl lg:text-base" href="{{ page.permalink | safe }}">
-                    {{ page.title }}
-                    <div class="ml-2 hidden lg:inline">
-                        <i class="las la-arrow-right"></i>
-                    </div>
-                </a>
+                dark:text-slate-400 hover:dark:text-slate-300
+                transition">
+                <div class="my-12 lg:my-4">
+                    <span class="text-slate-300 text-4xl lg:text-base inline-block w-32">{{ page.date | date(format="%Y-%m-%d") }}</span>
+                    <a class="text-4xl lg:text-base decoration-slate-900 dark:decoration-slate-400 underline underline-offset-4 inline-block"
+                       href="{{ page.permalink | safe }}">
+                        {{ page.title }}
+                        <div class="ml-2 hidden lg:inline">
+                            <i class="las la-arrow-right"></i>
+                        </div>
+                    </a>
+                </div>
             </li>
             {% endfor %}
         </ul>
