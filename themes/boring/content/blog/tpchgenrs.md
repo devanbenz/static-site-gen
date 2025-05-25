@@ -34,12 +34,12 @@ Regardless. The show must go on\! Unfortunately, this Pi was too under-powered f
 In order to build for the rust target `armv7-unknown-linux-gnueabih` I had to first install the cross compiler for ARM and add the target.
 
 ```shell  
-❯ sudo apt \-y install gcc-arm-linux-gnueabihf && rustup target add armv7-unknown-linux-gnueabih  
+❯ sudo apt -y install gcc-arm-linux-gnueabihf && rustup target add armv7-unknown-linux-gnueabih  
 ```
 
 And after running  
 ```shell  
-❯ cargo build \--target=armv7-unknown-linux-gnueabihf \--release  
+❯ cargo build --target=armv7-unknown-linux-gnueabihf --release  
 ```
 
 We get a cross built binary\! Ensuring that it's statically linked I can copy it over to my Pi.
@@ -47,13 +47,13 @@ We get a cross built binary\! Ensuring that it's statically linked I can copy it
 ```shell  
 ❯ cd target/armv7-unknown-linux-gnueabihf/release && file tpchgen-cli
 
-tpchgen-cli: ELF 32-bit LSB executable, ARM, EABI5 version 1 (GNU/Linux), statically linked, BuildID\[sha1\]=f5292640e67555bfd6e0886ae33d99215abb4b4b, for GNU/Linux 3.2.0, not stripped  
+tpchgen-cli: ELF 32-bit LSB executable, ARM, EABI5 version 1 (GNU/Linux), statically linked, BuildID[sha1]=f5292640e67555bfd6e0886ae33d99215abb4b4b, for GNU/Linux 3.2.0, not stripped  
 ```
 
 I proceeded to run tpchgen-rs setting it to use a scale factor of 1 and output parquet as the file format. 
 
 ```shell  
-❯ time ./tpchgen-cli \-s 1 \--format=parquet
+❯ time ./tpchgen-cli -s 1 --format=parquet
 
 real	1m15.101s  
 user	2m59.192s  
@@ -67,7 +67,7 @@ Well... not too bad if I say so. A little over a minute to run at a scale factor
 
 D INSTALL tpch;  
 D LOAD tpch;  
-D CALL dbgen(sf \= 1);
+D CALL dbgen(sf = 1);
 
 ```
 
