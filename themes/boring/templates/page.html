@@ -1,25 +1,52 @@
 {% extends "base.html" %}
-
 {% block head_extend %}
 <title>{{ title }}</title>
 {% endblock head_extend %}
-
 {% block content %}
-<div class="container mb-16">
-    <div class="mt-4 font-serif text-slate-600 dark:text-slate-500 text-4xl lg:text-base">
+<div class="container mb-16 px-4 sm:px-6">
+    <div class="mt-4 font-serif text-slate-600 dark:text-slate-500 text-lg sm:text-xl lg:text-base">
         {{ date | date(format="%Y-%m-%d") }}
     </div>
-    <h1 class="w-full mt-4 mb-8 font-serif text-8xl lg:text-4xl text-slate-900 dark:text-slate-300">
+    <h1 class="w-full mt-4 mb-8 font-serif text-3xl sm:text-5xl md:text-6xl lg:text-4xl text-slate-900 dark:text-slate-300 leading-tight break-words">
         {{ title }}
     </h1>
-    <div class="w-100 border-t mb-8 border-slate-300 dark:border-slate-700"></div>
-    <div class="prose-boring">
+    <div class="w-full border-t mb-8 border-slate-300 dark:border-slate-700"></div>
+    <div class="prose-boring max-w-none overflow-wrap break-words">
+        <style>
+            .prose-boring h1,
+            .prose-boring h2,
+            .prose-boring h3,
+            .prose-boring h4,
+            .prose-boring h5,
+            .prose-boring h6 {
+                word-wrap: break-word !important;
+                overflow-wrap: break-word !important;
+                hyphens: auto !important;
+                line-height: 1.2 !important;
+            }
+            
+            .prose-boring h2 {
+                font-size: 1.5rem !important;
+            }
+            
+            @media (min-width: 640px) {
+                .prose-boring h2 {
+                    font-size: 1.875rem !important;
+                }
+            }
+            
+            @media (min-width: 768px) {
+                .prose-boring h2 {
+                    font-size: 2.25rem !important;
+                }
+            }
+        </style>
         {{ content | safe }}
     </div>
-    <a class="font-sans text-gray-500 hover:text-gray-400
+    <a class="inline-block mt-8 font-sans text-gray-500 hover:text-gray-400
                         dark:text-slate-500 dark:hover:text-slate-400 transition"
        href="https://whateverforever.computer/blog/index.html">
-        <i class="las la-arrow-left"></i> Back
+        <i class="las la-arrow-left text-xl sm:text-base"></i> Back
     </a>
 </div>
 {% endblock content %}
