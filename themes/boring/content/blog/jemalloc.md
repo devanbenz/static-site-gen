@@ -24,9 +24,9 @@ The `heap` on the other hand is for more complex data types, a `String` or a `st
 
 C/C++ can use a method called `malloc` to perform memory allocation
 
-```cpp
-#include <stdio.h>   
-#include <stdlib.h> 
+```c
+#include <stdio.h>
+#include <stdlib.h>
  
 int main(void) {
     int *p1 = malloc(4*sizeof(int));  // allocates enough for an array of 4 int
@@ -83,11 +83,17 @@ Alright, cool, cool, cool. So how exactly does `jemalloc` account for multiple t
 
 It utilizes a neat idea called an `arena` and then assigns threads to specific arenas. 
 Arena's are basically a data structure that maintains a large chunk of already allocated memory for an application to use.
+To actually get memory from the operating system we need to use a syscall, usually [`mmap`]() and [`sbrk`]() are used. 
+Arena's will effectively call `mmap` to allocate a large pool of memory for our program to use continously, it will recycle memory as its `free`'ed.
+Why do we need arenas if we can easily use a single function call to get memory from the operating system though? Why can't I just use `mmap` on every object
+allocation? I guess if you wanted to, you could! But! There is a reason this is not a good idea, syscalls are very expensive. 
 
+### f#$king syscalls, how do they work? 
 
-For example, lets say you have a small C program using good ol' `dlmalloc`. 
+For example, lets say you have a small C++ program using good ol' `malloc`. Using the `glibc` version of `malloc` we are likely using the 
+`dlmalloc` implementation. 
 
-```c
+```cpp
 int main(void) {
        struct bar_t {
         int a;
@@ -105,52 +111,75 @@ int main(void) {
 }
 ```
 
-output of strace
+Underneath this call to `malloc` we make a few syscalls to `mmap` to create a memory arena. We can inspect with `strace`.
 
-```
-execve("./a.out", ["./a.out"], 0x7ffe5079fa40 /* 29 vars */) = 0
-brk(NULL)                               = 0x5bb8609c3000
-arch_prctl(0x3001 /* ARCH_??? */, 0x7ffc1dc9e2f0) = -1 EINVAL (Invalid argument)
-mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7860ee003000
-access("/etc/ld.so.preload", R_OK)      = -1 ENOENT (No such file or directory)
-openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
-newfstatat(3, "", {st_mode=S_IFREG|0644, st_size=31076, ...}, AT_EMPTY_PATH) = 0
-mmap(NULL, 31076, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7860edffb000
-close(3)                                = 0
-openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
-read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0P\237\2\0\0\0\0\0"..., 832) = 832
-pread64(3, "\6\0\0\0\4\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0"..., 784, 64) = 784
-pread64(3, "\4\0\0\0 \0\0\0\5\0\0\0GNU\0\2\0\0\300\4\0\0\0\3\0\0\0\0\0\0\0"..., 48, 848) = 48
-pread64(3, "\4\0\0\0\24\0\0\0\3\0\0\0GNU\0\325\31p\226\367\t\200\30)\261\30\257\33|\366c"..., 68, 896) = 68
-newfstatat(3, "", {st_mode=S_IFREG|0755, st_size=2220400, ...}, AT_EMPTY_PATH) = 0
-pread64(3, "\6\0\0\0\4\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0"..., 784, 64) = 784
-mmap(NULL, 2264656, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7860edc00000
-mprotect(0x7860edc28000, 2023424, PROT_NONE) = 0
-mmap(0x7860edc28000, 1658880, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x28000) = 0x7860edc28000
-mmap(0x7860eddbd000, 360448, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1bd000) = 0x7860eddbd000
-mmap(0x7860ede16000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x215000) = 0x7860ede16000
-mmap(0x7860ede1c000, 52816, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7860ede1c000
-close(3)                                = 0
-mmap(NULL, 12288, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7860edff8000
-arch_prctl(ARCH_SET_FS, 0x7860edff8740) = 0
-set_tid_address(0x7860edff8a10)         = 15814
-set_robust_list(0x7860edff8a20, 24)     = 0
-rseq(0x7860edff90e0, 0x20, 0, 0x53053053) = 0
-mprotect(0x7860ede16000, 16384, PROT_READ) = 0
-mprotect(0x5bb84d336000, 4096, PROT_READ) = 0
-mprotect(0x7860ee03d000, 8192, PROT_READ) = 0
-prlimit64(0, RLIMIT_STACK, NULL, {rlim_cur=8192*1024, rlim_max=RLIM64_INFINITY}) = 0
-munmap(0x7860edffb000, 31076)           = 0
-getrandom("\x03\x66\x47\xcf\x1c\xd9\xdc\x63", 8, GRND_NONBLOCK) = 8
-brk(NULL)                               = 0x5bb8609c3000
-brk(0x5bb8609e4000)                     = 0x5bb8609e4000
-exit_group(0)                           = ?
-+++ exited with 0 +++
+```sh
+> gcc -o with_malloc main.cpp && strace -e mmap ./with_malloc
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7be8122bd000
+mmap(NULL, 31200, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7be8122b5000
+mmap(NULL, 2264656, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7be812000000
+mmap(0x7be812028000, 1658880, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x28000) = 0x7be812028000
+mmap(0x7be8121bd000, 360448, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1bd000) = 0x7be8121bd000
+mmap(0x7be812216000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x215000) = 0x7be812216000
+mmap(0x7be81221c000, 52816, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7be81221c000
+mmap(NULL, 12288, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7be8122b2000
 ```
 
+Taking a look at the dissassembly of `mmap` after loading this file in to `gdb`
+
+```sh
+(gdb) disas mmap
+Dump of assembler code for function __GI___mmap64:
+   0x00007ffff79252f0 <+0>:     endbr64
+   0x00007ffff79252f4 <+4>:     test   $0xfff,%r9d
+   0x00007ffff79252fb <+11>:    jne    0x7ffff7925330 <__GI___mmap64+64>
+   0x00007ffff79252fd <+13>:    push   %rbp
+   0x00007ffff79252fe <+14>:    mov    %rsp,%rbp
+   0x00007ffff7925301 <+17>:    push   %r12
+   0x00007ffff7925303 <+19>:    mov    %ecx,%r12d
+   0x00007ffff7925306 <+22>:    push   %rbx
+   0x00007ffff7925307 <+23>:    mov    %rdi,%rbx
+   0x00007ffff792530a <+26>:    test   %rdi,%rdi
+   0x00007ffff792530d <+29>:    je     0x7ffff7925350 <__GI___mmap64+96>
+   0x00007ffff792530f <+31>:    mov    %r12d,%r10d
+   0x00007ffff7925312 <+34>:    mov    %rbx,%rdi
+   0x00007ffff7925315 <+37>:    mov    $0x9,%eax
+   0x00007ffff792531a <+42>:    syscall
 ```
-devan גּ desky ~/documents/blog_posts_code/jemalloc
- --> strace -e mmap ./with_jemalloc
+
+We see the following lines
+```sh
+0x00007ffff7925315 <+37>:    mov    $0x9,%eax
+0x00007ffff792531a <+42>:    syscall
+```
+
+The number 9 gets moved in to the `%eax` register. Afterwards `syscall` gets invoked, we know that `0x9` corresponds to `mmap` by taking a 
+look at the following [syscall table](https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/). This process of putting a syscall
+number in to a register and then initiating `syscall` will cause a context (or mode) switch from [user space to kernel space](https://en.wikipedia.org/wiki/User_space_and_kernel_space).
+Everything thats currently going on in the program execution needs to be effectively saved and then restored after the syscall is finished. [This of course is incredibly expensive](https://gms.tf/on-the-costs-of-syscalls.html). 
+
+> The state of the currently executing process must be saved so it can be restored when rescheduled for execution. 
+The process state includes all the registers that the process may be using, especially the program counter, plus any 
+other operating system specific data that may be necessary. This is usually stored in a data structure called a process control block (PCB) or switchframe.
+The PCB might be stored on a per-process stack in kernel memory (as opposed to the user-mode call stack), 
+or there may be some specific operating system-defined data structure for this information.
+A handle to the PCB is added to a queue of processes that are ready to run, often called the ready queue. 
+
+And therefor, to mitigate this expensive operation from constantly happening `malloc` will use a memory `arena`. We allocate some large chunk(s) using `mmap` and
+continue to use it over and over again attempting to defer any other calls to `mmap` if possible. 
+
+### Back to jemalloc!
+
+Now that a brief detour to better understand syscalls is over, lets get back to `jemalloc`. Using the same program above lets install `jemalloc` and link it.
+
+```sh
+> sudo apt install libjemalloc-dev && g++ -o with_jemalloc main.cpp -ljemalloc
+```
+
+And now lets take a look at the `mmap` calls with `strace`
+
+```sh
+> strace -e mmap ./with_jemalloc
 mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7971bf9cf000
 mmap(NULL, 31200, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7971bf9c7000
 mmap(NULL, 2987664, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7971bf600000
@@ -183,23 +212,9 @@ mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, 
 mmap(NULL, 2097152, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0) = 0x7971bec00000
 mmap(NULL, 2097152, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0) = 0x7971bea00000
 mmap(NULL, 4194304, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0) = 0x7971be600000
-+++ exited with 0 +++
-devan גּ desky ~/documents/blog_posts_code/jemalloc
- --> strace -e mmap ./with_malloc
-mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7be8122bd000
-mmap(NULL, 31200, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7be8122b5000
-mmap(NULL, 2264656, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0) = 0x7be812000000
-mmap(0x7be812028000, 1658880, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x28000) = 0x7be812028000
-mmap(0x7be8121bd000, 360448, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1bd000) = 0x7be8121bd000
-mmap(0x7be812216000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x215000) = 0x7be812216000
-mmap(0x7be81221c000, 52816, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7be81221c000
-mmap(NULL, 12288, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7be8122b2000
-+++ exited with 0 +++
 ```
 
+Oh... well that's awkward. I just spent an extended period of time telling you about how slow syscalls are and this memory allocator
+uses substantially more `mmap` calls for a simple executable. 
 
-
-
-### f#$king syscalls, how do they work? 
-
-### results
+TODO: finish the article :P 
