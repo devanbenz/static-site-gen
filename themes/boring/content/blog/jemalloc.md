@@ -71,13 +71,14 @@ intricacies of memory management in Rust. Or if you're a masochist the [memory m
 
 Now without further a'do, there are plenty of interesting ideas that went in to the creation of `jemalloc`. 
 
-### arenas, two (or more) threads enter, one (or more) allocation leaves!
+### Arenas; two (or more) threads enter, one (or more) allocation leaves!
 
 The primary reason for the creation of `jemalloc` is exactly as the paper title alludes to, scalability for multi-threaded/multi-processor systems. You see, back in the early aughts FreeBSD's default implementation of 
-`malloc` was lagging behind on performance for multi-threaded applications on multi-core systems. Hardware was improving so software needed to adapt. This version of `malloc` called `dlmalloc` would effectively
-[hold a global heap mutex wrapper around function calls](https://github.com/ennorehling/dlmalloc/blob/71296436f979a350870e10b869ccfd28bfcc17e4/malloc.c#L136-L150). Clearly this was not scalable as software
+`malloc` was lagging behind on performance for multi-threaded applications on multi-core systems. Hardware was improving so software needed to adapt. This version of `malloc` called `phkmalloc` would effectively
+[hold a global heap mutex wrapper around function calls](https://github.com/emeryberger/Malloc-Implementations/blob/17e52035d91f9f2e52e3303c8872ee29f5b5a7c5/allocators/phkmalloc/phkmalloc.c#L78-L82). 
+Clearly this was not scalable as software
 needed to catch up with the emergence of multi core systems and heavier usage of concurrency in application code. And thus, `jemalloc` was one memory allocator that found its way on to the scene
-to help alleviate the problems with `dlmalloc` usage in highly concurrent settings. 
+to help alleviate the problems with `phkmalloc` usage in highly concurrent settings. 
 
 Alright, cool, cool, cool. So how exactly does `jemalloc` account for multiple threads?
 
@@ -88,10 +89,10 @@ Arena's will effectively call `mmap` to allocate a large pool of memory for our 
 Why do we need arenas if we can easily use a single function call to get memory from the operating system though? Why can't I just use `mmap` on every object
 allocation? I guess if you wanted to, you could! But! There is a reason this is not a good idea, syscalls are very expensive. 
 
-### f#$king syscalls, how do they work? 
+### F#$king syscalls, how do they work? 
 
 For example, lets say you have a small C++ program using good ol' `malloc`. Using the `glibc` version of `malloc` we are likely using the 
-`dlmalloc` implementation. 
+`dlmalloc` implementation or something based on it. 
 
 ```cpp
 int main(void) {
@@ -153,7 +154,7 @@ We see the following lines
 0x00007ffff792531a <+42>:    syscall
 ```
 
-The number 9 gets moved in to the `%eax` register. Afterwards `syscall` gets invoked, we know that `0x9` corresponds to `mmap` by taking a 
+The number 9 gets moved in to the `%eax` register. Afterwards `syscall` gets invoked which triggers a software interrupt, we know that `0x9` corresponds to `mmap` by taking a 
 look at the following [syscall table](https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/). This process of putting a syscall
 number in to a register and then initiating `syscall` will cause a context (or mode) switch from [user space to kernel space](https://en.wikipedia.org/wiki/User_space_and_kernel_space).
 Everything thats currently going on in the program execution needs to be effectively saved and then restored after the syscall is finished. [This of course is incredibly expensive](https://gms.tf/on-the-costs-of-syscalls.html). 
@@ -215,6 +216,168 @@ mmap(NULL, 4194304, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERV
 ```
 
 Oh... well that's awkward. I just spent an extended period of time telling you about how slow syscalls are and this memory allocator
-uses substantially more `mmap` calls for a simple executable. 
+uses substantially more `mmap` calls for a simple executable. Remember how I said that `jemalloc` will use multiple arenas and assign threads to them?
+Paying an upfront cost for more syscalls will allow us to create multiple memory arenas that threads can be assigned to.
 
-TODO: finish the article :P 
+![jemalloc_arenas](https://s3.amazonaws.com/whateverforever-img/jemalloc_arenas.png)
+
+Often times when building software there are tradeoffs, there's no such thing as free lunch. One of the primary tradeoffs in `jemalloc` is that you're paying a bit of an upfront cost 
+to generate more memory arenas. By having more arenas and *most of the time* having a single thread interact with a single arena we can avoid contention between threads and not have to worry about 
+holding locks throughout our memory allocation. This elimates are large bottleneck caused by `dlmalloc` when using multiple threads.
+
+### To cache or not to cache (or to accidently invalidate the cache)
+
+Let me illustrate another issue that having multiple arenas can solve as well. Let's imagine we have a single arena, but, within this arena we create multiple data structures 
+to allocate and deallocate memory. Say a free list. Now we could potentially ease any lock contention by having multiple lists each with its own lock. 
+This is precisely what is purposed in [Memory allocation for long running server applications](https://www.researchgate.net/publication/221032974_Memory_Allocation_for_Long-Running_Server_Applications).
+Using multiple free lists each with their own dedicated locking mechanism proved to help with lock contention. It did not prove to scale adequetly with the latest and greatest hardware at the time though.
+This has been attributed to something known as [false sharing](https://en.wikipedia.org/wiki/False_sharing). I believe the jemalloc paper calls this "cache sloshing". 
+
+> Where main memory is accessed in a pattern that leads to multiple main memory locations competing for the same cache lines, resulting in excessive cache misses. 
+This is most likely to be problematic for caches with associativity.
+
+Okay but *what is a cache line*?
+
+When the CPU puts data in its L1/L2/L3 cache registers it will go out to main memory (RAM) and fetch entire contigous chunks of data. This will save it from having to make round trips. 
+The CPU likes when we store like data with each other at 64 byte offsets. That way it can fit nicely in to a cache line. See [here](https://www.akkadia.org/drepper/cpumemory.pdf) 
+if you're interested in reading more about how memory works. 
+
+In a perfect world we would have a single thread accessing each chunk in a cpu cache line
+
+```
+                   CPU CACHE LINE                    
+┌───────────────────────────────────────────────────┐
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐  │
+│  │ Block 1 │ │ Block 2 │ │ Block 3 │ │ Block 4 │  │
+│──┼─────────┼─┼─────────┼─┼─────────┼─┼─────────┼──│
+│  │         │ │         │ │         │ │         │  │
+│  └──────▲──┘ └─▲───────┘ └─────▲───┘ └─▲───────┘  │
+└─────────┼──────┼───────────────┼───────┼──────────┘
+          │      │               │       │           
+       ┌──┴──────┴───┐       ┌───┴───────┴─┐         
+       │             │       │             │         
+       │  Thread 1   │       │  Thread 2   │         
+       │             │       │             │         
+       └─────────────┘       └─────────────┘
+```
+
+Since cache lines in the CPU are fixed size chunks and given the fact that we can have two or more free lists. There is a good chance that our free lists will not be at the exact offsets required by the cache sizes.
+
+```
+                   CPU CACHE LINE                    
+┌───────────────────────────────────────────────────┐
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐  │
+│  │ Block 1 │ │ Block 2 │ │ Block 3 │ │ Block 4 │  │
+│──┼─────────┼─┼─────────┼─┼─────────┼─┼─────────┼──│
+│  │         │ │         │ │         │ │         │  │
+│  └──────▲──┘ └─▲─────▲─┘ └─────▲───┘ └─────────┘  │
+└─────────┼──────┼─────┼─────────┼──────────────────┘
+          │      │     │         │                   
+       ┌──┴──────┴───┐ │     ┌───┼─────────┐         
+       │             │ └─────┼             │         
+       │  Thread 1   │       │  Thread 2   │         
+       │             │       │             │         
+       └─────────────┘       └─────────────┘
+```
+
+You see, even though the free lists are protected by mutexes there is nothing stopping one thread from working on another threads cached data. When this occurs the entire CPU cache line must be invalidated. 
+The component which manages the caching mechanism does not know which division of the cache block is actually updated. 
+It marks the whole block dirty, forcing a memory update to maintain cache coherency. This is a very expensive computation compared to a ‘write’ activity in the cache block.
+
+![jemalloc_cache](https://s3.amazonaws.com/whateverforever-img/jemalloc_cache.png)
+
+Taking a look at the following rust code we can get a better idea of how this is seen. 
+```rust
+use std::thread;
+use std::time::Instant;
+
+static mut ARRAY: [i32; 100] = [0; 100];
+
+fn compute(start: Instant, end: Instant) -> f64 {
+    let duration = end.duration_since(start);
+    duration.as_secs_f64() * 1000.0 
+}
+
+fn expensive_function(index: usize) {
+    unsafe {
+        for _ in 0..100_000_000 {
+            ARRAY[index] += 1;
+        }
+    }
+}
+
+fn main() {
+    let first_elem = 0;
+    // This value is very close to 0 and will 
+    // likely share the same cpu cache line. 
+    let bad_elem = 1;
+    let good_elem = 99;
+
+    // Synchronous 
+    let tp_begin1 = Instant::now();
+    expensive_function(first_elem);
+    expensive_function(bad_elem);
+    let tp_end1 = Instant::now();
+
+    // False sharing
+    let tp_begin2 = Instant::now();
+    let handle1 = thread::spawn(move || {
+        expensive_function(first_elem);
+    });
+    let handle2 = thread::spawn(move || {
+        expensive_function(bad_elem);
+    });
+    handle1.join().unwrap();
+    handle2.join().unwrap();
+    let tp_end2 = Instant::now();
+
+    // Multi-threaded without false sharing
+    let tp_begin3 = Instant::now();
+    let handle1 = thread::spawn(move || {
+        expensive_function(first_elem);
+    });
+    let handle2 = thread::spawn(move || {
+        expensive_function(good_elem);
+    });
+    handle1.join().unwrap();
+    handle2.join().unwrap();
+    let tp_end3 = Instant::now();
+
+    let time1 = compute(tp_begin1, tp_end1);
+    let time2 = compute(tp_begin2, tp_end2);
+    let time3 = compute(tp_begin3, tp_end3);
+
+    println!("False sharing: {:.6} ms", time2);
+    println!("Without false sharing: {:.6} ms", time3);
+    println!("Synchronous: {:.6} ms", time1);
+}
+```
+
+And the output
+```txt
+False sharing: 717.221500 ms
+Without false sharing: 433.996709 ms
+Synchronous: 857.040209 ms
+```
+
+The code that forces a false sharing state will add an addition ~300 ms of time to the program execution. This is nearly as bad as just writing single threaded code. 
+
+As shown by the following `malloc-test` benchmark. We can see that `jemalloc` doesn't perform as well as `dlmalloc` on a single thread and slightly better than `phkmalloc`. As soon as multiple threads are in play, the 
+performance difference is astonishing. Recall that having multiple threads using a single arena can cause performance problems due to false sharing and contention. You'll notice that when `jemalloc` starts using 
+about 16 threads there is a bit of performance degredation. This is due to the system which ran this benchmark using 16 arenas. 
+
+![jemalloc_bench.png](https://s3.amazonaws.com/whateverforever-img/jemalloc_bench.png)
+
+### Parting thoughts
+
+Overall, [A Scalable Concurrent malloc(3) Implementation for FreeBSD](https://people.freebsd.org/~jasone/jemalloc/bsdcan2006/jemalloc.pdf) is a very good read, filled with a ton of systems programming wisdom.
+I highly suggest giving it a read, there are so many more gems in there including how `jemalloc` deals with fragmentation, more benchmarks, and dealing with allocations that are larger that a suitable arena chunk can hold. 
+If looking at some code is also your thing I suggest taking a peek at the [mozilla jemalloc implemenation](https://searchfox.org/mozilla-central/source/memory/build/mozjemalloc.cpp) too. Oh, and if you haven't figured it out by now the `je` in `jemalloc` stands for the authors name "Jason Evans", the `dl` in `dlmalloc` stands for the authors name Doug Lea, the `phk` in `phkmalloc` stands for "Poul-Henning Kamp" and so on and so forth. Basically all allocators use their author's initials. 
+
+As stated by Jason Evans
+
+>Allocator design and implementation has strong potential as the subject of career-long obsession,
+and indeed there are people who focus on this subject.
+
+I personally have been enamored with the idea of memory allocators even before reading [A Scalable Concurrent malloc(3) Implementation for FreeBSD](https://people.freebsd.org/~jasone/jemalloc/bsdcan2006/jemalloc.pdf). 
+I'll likely be writing more about them in the near future.
