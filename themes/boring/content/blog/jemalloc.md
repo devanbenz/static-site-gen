@@ -7,14 +7,14 @@ description: "Analysis of jemalloc, a concurrent scallable malloc."
 
 #### Why does everyone who writes an allocater prepend it with their initials???
 
-When writing software there is an unsung hero, memory allocation. When it comes to memory allocation there are two primary camps:
+When writing software there is an unsung hero, memory allocation. At a high level there are two primary methods of memory management:
 
 1. Using a garbage collector for automatic memory management
 2. Using language primitives for manual memory management
 
-Using a language that has a garbage collector memory management is not something you as the programmer needs to take in to account. 
+Memory management is not something that needs to be taken in to account when using a language that has a garbage collector.
 The garbage collector is sitting idly by, watching everything you do, judging your careless declaration of objects and constantly cleaning up for you. Other languages that don't 
-take advantage of a garbage collector are not so kind. Manual memory management is done in various different ways throughout many different languages and that is precisely the most recent topic we read about in my
+take advantage of a garbage collector are not so kind. Manual memory management is done in various ways throughout different languages and that is precisely the most recent topic we read about in my
 papers reading group at work. Specifically we read through [A Scalable Concurrent malloc(3) Implementation for FreeBSD](https://people.freebsd.org/~jasone/jemalloc/bsdcan2006/jemalloc.pdf).
 
 So, before diving in to some topics from the paper. How exactly does memory allocation work when you need to manage it yourself?
@@ -51,7 +51,7 @@ Calling `free` will deallocate the memory.
 Rust, which I hear is all the rage due to its memory safety, doesn't require you to call `malloc` or `free`.
 Instead, Rust uses the idea of `ownership` and `borrowing` which effectively will declare objects on the heap for you
 and as soon as it leaves the scope Rust will call `drop` to perform automatic resource cleanup. This technique is also 
-known as `RAII` (Resource acquisition is initialization) and was popularized by C++. 
+known as [`RAII` (Resource acquisition is initialization)](https://en.wikipedia.org/wiki/Resource_acquisition_is_initialization) and was popularized by C++. 
 
 ```rust
 fn main() {
@@ -66,7 +66,7 @@ fn main() {
 > One of the reasons C has bugs due to 'memory safety' is often caused by calling free too much or too little, either leaving dangling pointers
 around or double-freeing. Wrangling around mallocs and frees all over the place can be quite unwieldy!
 
-There are various other ways to allocate and deallocate memory both in C++ and Rust. I suggest giving [the rust ownership doc]() a read if you're more interested in the
+There are various other ways to allocate and deallocate memory both in C++ and Rust. I suggest giving [the rust ownership doc](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html) a read if you're more interested in the
 intricacies of memory management in Rust. Or if you're a masochist the [memory management C++ reference doc](https://en.cppreference.com/w/cpp/memory.html).
 
 Now without further a'do, there are plenty of interesting ideas that went in to the creation of `jemalloc`. 
@@ -84,8 +84,10 @@ Alright, cool, cool, cool. So how exactly does `jemalloc` account for multiple t
 
 It utilizes a neat idea called an `arena` and then assigns threads to specific arenas. 
 Arena's are basically a data structure that maintains a large chunk of already allocated memory for an application to use.
-To actually get memory from the operating system we need to use a syscall, usually [`mmap`]() and [`sbrk`]() are used. 
+To actually get memory from the operating system we need to use a syscall, usually [`mmap`](https://man7.org/linux/man-pages/man2/mmap.2.html) and [`sbrk`](https://linux.die.net/man/2/sbrk) are used. 
 Arena's will effectively call `mmap` to allocate a large pool of memory for our program to use continously, it will recycle memory as its `free`'ed.
+
+
 Why do we need arenas if we can easily use a single function call to get memory from the operating system though? Why can't I just use `mmap` on every object
 allocation? I guess if you wanted to, you could! But! There is a reason this is not a good idea, syscalls are very expensive. 
 
@@ -154,7 +156,7 @@ We see the following lines
 0x00007ffff792531a <+42>:    syscall
 ```
 
-The number 9 gets moved in to the `%eax` register. Afterwards `syscall` gets invoked which triggers a software interrupt, we know that `0x9` corresponds to `mmap` by taking a 
+In this assembly the integer 9 `$0x9` gets moved in to the `%eax` register. Afterwards `syscall` gets invoked which triggers a software interrupt, we know that `0x9` corresponds to `mmap` by taking a 
 look at the following [syscall table](https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/). This process of putting a syscall
 number in to a register and then initiating `syscall` will cause a context (or mode) switch from [user space to kernel space](https://en.wikipedia.org/wiki/User_space_and_kernel_space).
 Everything thats currently going on in the program execution needs to be effectively saved and then restored after the syscall is finished. [This of course is incredibly expensive](https://gms.tf/on-the-costs-of-syscalls.html). 
@@ -166,7 +168,7 @@ The PCB might be stored on a per-process stack in kernel memory (as opposed to t
 or there may be some specific operating system-defined data structure for this information.
 A handle to the PCB is added to a queue of processes that are ready to run, often called the ready queue. 
 
-And therefor, to mitigate this expensive operation from constantly happening `malloc` will use a memory `arena`. We allocate some large chunk(s) using `mmap` and
+And therefore, to mitigate this expensive operation from constantly happening `malloc` will use a memory `arena`. We allocate some large chunk(s) using `mmap` and
 continue to use it over and over again attempting to defer any other calls to `mmap` if possible. 
 
 ### Back to jemalloc!
@@ -223,13 +225,13 @@ Paying an upfront cost for more syscalls will allow us to create multiple memory
 
 Often times when building software there are tradeoffs, there's no such thing as free lunch. One of the primary tradeoffs in `jemalloc` is that you're paying a bit of an upfront cost 
 to generate more memory arenas. By having more arenas and *most of the time* having a single thread interact with a single arena we can avoid contention between threads and not have to worry about 
-holding locks throughout our memory allocation. This elimates are large bottleneck caused by `dlmalloc` when using multiple threads.
+holding locks throughout our memory allocation. This elimates are large bottleneck caused by `phkmalloc` and `dlmalloc` when using multiple threads.
 
 ### To cache or not to cache (or to accidently invalidate the cache)
 
 Let me illustrate another issue that having multiple arenas can solve as well. Let's imagine we have a single arena, but, within this arena we create multiple data structures 
 to allocate and deallocate memory. Say a free list. Now we could potentially ease any lock contention by having multiple lists each with its own lock. 
-This is precisely what is purposed in [Memory allocation for long running server applications](https://www.researchgate.net/publication/221032974_Memory_Allocation_for_Long-Running_Server_Applications).
+This is precisely what is preposed in [Memory allocation for long running server applications](https://www.researchgate.net/publication/221032974_Memory_Allocation_for_Long-Running_Server_Applications).
 Using multiple free lists each with their own dedicated locking mechanism proved to help with lock contention. It did not prove to scale adequetly with the latest and greatest hardware at the time though.
 This has been attributed to something known as [false sharing](https://en.wikipedia.org/wiki/False_sharing). I believe the jemalloc paper calls this "cache sloshing". 
 
@@ -286,7 +288,7 @@ It marks the whole block dirty, forcing a memory update to maintain cache cohere
 
 ![jemalloc_cache](https://s3.amazonaws.com/whateverforever-img/jemalloc_cache.png)
 
-Taking a look at the following rust code we can get a better idea of how this is seen. 
+Taking a look at the following rust code we can get a better idea of how this happens. 
 ```rust
 use std::thread;
 use std::time::Instant;
