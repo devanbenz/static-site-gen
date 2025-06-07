@@ -7,12 +7,21 @@
     <div class="mt-4 font-serif text-slate-600 dark:text-slate-500 text-lg sm:text-xl lg:text-base">
         {{ date | date(format="%Y-%m-%d") }}
     </div>
-    <h1 class="w-full mt-4 mb-8 font-serif text-3xl sm:text-5xl md:text-6xl lg:text-4xl text-slate-900 dark:text-slate-300 leading-tight break-words">
+    <h1 class="w-full mt-4 mb-8 font-serif text-3xl sm:text-5xl md:text-6xl lg:text-4xl text-slate-900 dark:text-slate-300 leading-tight">
         {{ title }}
     </h1>
     <div class="w-full border-t mb-8 border-slate-300 dark:border-slate-700"></div>
-    <div class="prose-boring max-w-none overflow-wrap break-words">
+    <div class="prose-boring max-w-none">
         <style>
+            /* Main page title improvements */
+            h1 {
+                word-wrap: break-word !important;
+                overflow-wrap: break-word !important;
+                hyphens: auto !important;
+                word-break: break-word !important;
+            }
+
+            /* Content headers */
             .prose-boring h1,
             .prose-boring h2,
             .prose-boring h3,
@@ -23,30 +32,68 @@
                 overflow-wrap: break-word !important;
                 hyphens: auto !important;
                 line-height: 1.2 !important;
+                word-break: break-word !important;
+                max-width: 100% !important;
             }
-            
+
             .prose-boring h2 {
                 font-size: 1.5rem !important;
             }
-            
+
+            /* Mobile-specific improvements */
+            @media (max-width: 639px) {
+                h1 {
+                    font-size: 2rem !important;
+                    line-height: 1.1 !important;
+                }
+
+                .prose-boring h1 {
+                    font-size: 1.75rem !important;
+                }
+
+                .prose-boring h2 {
+                    font-size: 1.375rem !important;
+                }
+
+                .prose-boring h3 {
+                    font-size: 1.25rem !important;
+                }
+            }
+
             @media (min-width: 640px) {
                 .prose-boring h2 {
                     font-size: 1.875rem !important;
                 }
             }
-            
+
             @media (min-width: 768px) {
                 .prose-boring h2 {
                     font-size: 2.25rem !important;
                 }
             }
+
+            /* Additional mobile optimizations */
+            @media (max-width: 479px) {
+                h1 {
+                    font-size: 1.75rem !important;
+                }
+
+                .prose-boring h1 {
+                    font-size: 1.5rem !important;
+                }
+
+                .prose-boring h2 {
+                    font-size: 1.25rem !important;
+                }
+            }
         </style>
         {{ content | safe }}
     </div>
-    <a class="inline-block mt-8 font-sans text-gray-500 hover:text-gray-400
-                        dark:text-slate-500 dark:hover:text-slate-400 transition"
+    <a class="inline-block mt-8 py-3 px-4 font-sans text-lg sm:text-base text-gray-500 hover:text-gray-400
+                        dark:text-slate-500 dark:hover:text-slate-400 transition
+                        touch-manipulation select-none"
        href="https://whateverforever.computer/blog/index.html">
-        <i class="las la-arrow-left text-xl sm:text-base"></i> Back
+        <i class="las la-arrow-left text-2xl sm:text-lg mr-2"></i>Back
     </a>
 </div>
 {% endblock content %}
