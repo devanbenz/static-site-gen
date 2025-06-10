@@ -1,13 +1,11 @@
 ---
-title: "Global Hash Table's strike back!"
+title: "Global Hash Tables strike back!"
 title_slug: "global-hash-tables"
 date: 2025-06-12T11:50:58-06:00
 description: "Analysis of Global hash table's strike back paper"
 ---
 
-## TODO: Come up with header tag line
-
-During my free time I happen to attend a [book club]() and during my working hours I attend a company papers reading group. 
+During my free time I happen to attend a [book club]() and my working hours I attend a company papers reading group. 
 This requires me to do a lot of reading! Which, if you enjoy reading about 
 databases or operating system internals this is a *great* way to spend your free time. Recently I got incredibly lucky. The book club and 
 my reading group at work are reading the same paper! That means, I get to discuss it with intelligent people--twice! The most recent reading 
@@ -60,48 +58,153 @@ A `dynamic hash table` will use operations to grow the hash table which can lead
 
 The most common approach for a `static hash table` would be `linear probe hashing` (spoiler this is used in the paper), and for `dynamic hash tables` the most common approach is called `chained hashing`. 
 
-A `linear probe hash table`
+A `linear probe hash table` will use a [circular buffer](https://en.wikipedia.org/wiki/Circular_buffer) to insert colliding keys. Generally in this hash table scheme you need a way to store tombstones (deleted data). Since 
+rust has a `None` type we can easily achieve this using that value. Other programming languages may need a sentinel value to achieve this. 
 
 
 A very simple `linear probe hash table` in rust could look something like the following.
 ```rust
+use std::hash::Hash;
+use xxhash_rust::const_xxh3::xxh3_64 as const_xxh3;
+
 struct HashTable {
-    table: Vec<Option<(i32, i32)>>, 
+    table: Vec<Option<(String, String)>>,
 }
 
 impl HashTable {
     fn new() -> Self {
         Self { table: vec![None; 16] }
     }
-    
-    fn hash(&self, key: i32) -> usize {
-        (key as usize) % self.table.len()
+
+    fn resize(&mut self) {
+        let new_size = self.table.len() * 2;
+        // Since String implements Clone this is fine
+        // this is a simple example so we will just use the
+        // resize primitive. Usually you will need to impl
+        // Clone in rust if this was done using a generic.
+        self.table.resize(new_size, None);
     }
-    
-    fn insert(&mut self, key: i32, value: i32) {
-        let mut index = self.hash(key);
-        while let Some((k, _)) = self.table[index] {
-            if k == key { break; } 
-            index = (index + 1) % self.table.len(); 
+
+    fn hash(&self, key: String) -> usize {
+        // Using xxHash, hash the string
+        // and get an index using modulo operator
+        const_xxh3(key.as_bytes()) as usize % self.table.len()
+    }
+
+    fn insert(&mut self, key: String, value: String) {
+        let key_index = self.hash(key.clone());
+        let mut cur_index = key_index;
+
+        // This is where the actual logic for linear probing will be during 
+        // insert. If there is already a value in the slot index we would like to 
+        // use you need to loop through the array and select the next empty index.
+        // If the array is full then we will resize it and insert in to the next free 
+        // slot.
+        while let Some((_, val)) = self.table[cur_index].clone() {
+            if val == value { break; }
+            cur_index = (cur_index + 1) % self.table.len();
+
+            if cur_index == key_index {
+                cur_index = (self.table.len() + 1);
+                self.resize();
+                break
+            }
         }
-        self.table[index] = Some((key, value));
+
+        // If there is None in the slot
+        // the value can be inserted at the hashed key
+        // index.
+        self.table[cur_index] = Some((key, value));
     }
-    
-    fn get(&self, key: i32) -> Option<i32> {
-        let mut index = self.hash(key);
-        while let Some((k, v)) = self.table[index] {
-            if k == key { return Some(v); }
+
+    fn get(&self, key: String) -> Option<String> {
+        let mut index = self.hash(key.clone());
+        while let Some((k, val)) = self.table[index].clone() {
+            if k == key { return Some(val); }
             index = (index + 1) % self.table.len();
         }
         None
     }
 }
-
 ```
 
+For a `chained hashing` hash table we initialize it with a fixed table size. Each index within our table array will just hold a linked list. If you insert a value at a certain index 
+and there is a key collision, you just simply traverse the linked list and insert it at the tail end. Pretty easy right? This is a very common dynamic hashing scheme due to its ease of 
+implementation. 
+
+And here is a simple example
+```rust
+use std::collections::LinkedList;
+use std::hash::Hash;
+use xxhash_rust::const_xxh3::xxh3_64 as const_xxh3;
+
+struct HashTable {
+    table: Vec<Option<LinkedList<(String, String)>>>,
+}
+
+impl HashTable {
+    fn new() -> Self {
+        Self { table: vec![None; 16] }
+    }
+
+    fn hash(&self, key: String) -> usize {
+        // Using xxHash, hash the string
+        // and get an index using modulo operator
+        const_xxh3(key.as_bytes()) as usize % self.table.len()
+    }
+
+    fn insert(&mut self, key: String, value: String) {
+        let key_index = self.hash(key.clone());
+
+        // Logic for chained hashing, if there is already a value
+        // at this slot index we will traverse a linked list and insert it at the
+        // end of the list.
+        if let Some(mut list) = self.table[key_index].clone() {
+            while let Some((k, v)) = list.clone().iter_mut().next() {
+                if *k == key {
+                    *v = value.clone();
+                    return;
+                }
+            }
+            list.push_back((key, value));
+        } else {
+            // If there is None in the slot we can create a new list
+            // and insert said list in to the slot
+            let mut list = LinkedList::new();
+            list.push_front((key, value));
+            self.table[key_index] = Some(list);
+        }
+    }
+
+    fn get(&self, key: String) -> Option<String> {
+        let mut index = self.hash(key.clone());
+        if let Some(list) = self.table[index].clone() {
+            while let Some((k, v)) = list.clone().iter().next() {
+                if k.eq(&key) {
+                    return Some(v.clone());
+                }
+            }
+        }
+        None
+    }
+}
+```
+
+And thus with the magic of linked lists ([which rust actually states it's always better to use a `Vec` or `VecDeque`](https://doc.rust-lang.org/std/collections/struct.LinkedList.html)) you can build a 
+hash table that will grow without the need to resize. Of course there is a trade off here, do you make it larger to begin with, or do you make it smaller? Those are some design decisions that can be an
+exercise to the reader. 
+
+Hash table usage in database systems is vast, just a few things they are used for
+* Internal meta-data that keeps track of information about the database and it's system state (page tables, page directories).
+* Core data storage; some structures that hold actual records in the DBMS will use hash tables. 
+* Temporary data storage; sometimes when performing a join or GROUP BY (hence this paper) you will need to build a hash table on the fly.
+* Table indices; used as additional structures to help locate specific records. 
+
+## Push VS. Pull!
+
+Next up, lets discuss *query evaluation*. 
 
 ## Paritioning!
 
 
 
-## Push VS. Pull!
