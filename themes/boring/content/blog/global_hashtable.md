@@ -202,7 +202,15 @@ Hash table usage in database systems is vast, just a few things they are used fo
 
 ## Push VS. Pull!
 
-Next up, lets discuss *query evaluation*. 
+Next up, lets discuss *query evaluation*. There are two dominate methodologies for query evaluation in database systems. 
+
+1. Pull based (volcano/iterator)
+2. Push based (morsel driven)
+
+I'll do my best to explain the core difference between these systems, but if you have time I would suggest reading this [amazing blog post]() by
+Justin Jaffrey. He gives a great explaination. 
+
+
 
 ## Paritioning!
 
