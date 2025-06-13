@@ -7,7 +7,7 @@ description: "Analysis of Global hash table's strike back paper"
 
 During my free time I happen to attend a [book club]() and my working hours I attend a company papers reading group. 
 This requires me to do a lot of reading! Which, if you enjoy reading about 
-databases or operating system internals this is a *great* way to spend your free time. Recently I got incredibly lucky. The book club and 
+databases or operating system internals this is a *great* way to spend your time. Recently I got incredibly lucky. The book club and 
 my reading group at work are reading the same paper! That means, I get to discuss it with intelligent people--twice! The most recent reading 
 was [Global Hash Tables Strike Back! An Analysis of Parallel GROUP BY Aggregation](https://arxiv.org/pdf/2505.04153). I figured today that I would
 discuss a bit about this paper, what makes it interesting to me, and a few ideas surrounding it. 
@@ -16,7 +16,7 @@ But first, to better understand the why, we need to look at some foundational id
 
 * Hash tables and their use in databases.
 * Push VS. Pull query evaluation. 
-* Partitioning data; why this is a good thing--but also potentially a *slow* thing.
+* Partitioning data; why this is a good thing--but also potentially a performance bottleneck.
 
 ## Hash tables! 
 
@@ -207,8 +207,10 @@ Next up, lets discuss *query evaluation*. There are two dominate methodologies f
 1. Pull based (volcano/iterator)
 2. Push based (morsel driven)
 
-I'll do my best to explain the core difference between these systems, but if you have time I would suggest reading this [amazing blog post]() by
+I'll do my best to explain the core difference between these systems, but if you have time I would suggest reading this [amazing blog post](https://justinjaffray.com/query-engines-push-vs.-pull/) by
 Justin Jaffrey. He gives a great explaination. 
+
+SQL queries are parsed and then transformed in to a tree (or DAG) of operators used to perfo
 
 
 
