@@ -207,12 +207,39 @@ Next up, lets discuss *query evaluation*. There are two dominate methodologies f
 1. Pull based (volcano/iterator)
 2. Push based (morsel driven)
 
-I'll do my best to explain the core difference between these systems, but if you have time I would suggest reading this [amazing blog post](https://justinjaffray.com/query-engines-push-vs.-pull/) by
+I'll do my best to explain the core difference between these systems briefly, but if you have time I would suggest reading this [amazing blog post](https://justinjaffray.com/query-engines-push-vs.-pull/) by
 Justin Jaffrey. He gives a great explaination. 
 
-SQL queries are parsed and then transformed in to a tree (or DAG) of operators used to perfo
+SQL queries are parsed and then transformed in to a tree (or DAG) of operators used to perform actions on data. The culmination of these actions will retrieve the specific records you need from your DBMS. 
 
+For example; let's say we have the following query
 
+```sql
+SELECT name FROM customers WHERE products > 10 GROUP BY name
+```
+
+Which as represented by its operators would look something like this
+
+![global_ht_query](https://s3.amazonaws.com/whateverforever-img/global_ht_query.svg)
+
+For pull based query evaluation we would start at the root node of this tree and have each operator 
+"pull" data up from its children. The most common approach to this is something called the [volcano model](https://cs-people.bu.edu/mathan/reading-groups/papers-classics/volcano.pdf). 
+Effectively all operators implement the same iterator interface establishing a `next` method. In this query evaluation model all parent operators rely on something coined a 
+`demand-driven` data flow. They will only call `next` when they need data from their children. The volcano model assumes that this is done a single record at a time, more modern OLAP systems
+such as [Apache Datafusion]() use a vectorized version of volcano batching records on each call to `next`.
+
+So if we were to perform a logical pull query evaluation on our operators above we would see something like this
+
+```
+Aggregate(name) <| Project(name) <| Select(products > 10) <| customers
+```
+Where `Aggregate(name)` is emitting data from `Project(name)` which in turn is emtting data from `Select(products > 10)` and finally `Select(products > 10)` 
+is emitting data from `customers`. There are various other nuances to pull based query evaluation but this is the gist of it. 
+
+On to push based query evaluation! 
+
+Since pull based query evaluation starts from the root node, one has to assume that push based also must start at the root node! Nope, just kidding. It starts from the leaf nodes 
+and pushes data up to the parents. This would be considered a `data-drive` data flow. 
 
 ## Paritioning!
 
