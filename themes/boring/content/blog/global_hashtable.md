@@ -239,7 +239,21 @@ is emitting data from `customers`. There are various other nuances to pull based
 On to push based query evaluation! 
 
 Since pull based query evaluation starts from the root node, one has to assume that push based also must start at the root node! Nope, just kidding. It starts from the leaf nodes 
-and pushes data up to the parents. This would be considered a `data-drive` data flow. 
+and pushes data up to the parent node. This would be considered a `data-driven` data flow. Push query evaluation will decouple nodes from each other theoretically allowing for 
+greater degrees of parallelism, allowing operators to work better in NUMA architectures. 
+Our logical example above would just be flipped where we are now starting at the leaf nodes within the query evaluation. There is the added addition
+of a scheduling component now too. 
+
+```
+                          Scheduler
+    --------------------------------------------------------
+    |               |                     |                |
+    V               V                     V                V
+customers -> Select(products > 10) -> Project(name) -> Aggregate(name)
+```
+
+
+
 
 ## Paritioning!
 
