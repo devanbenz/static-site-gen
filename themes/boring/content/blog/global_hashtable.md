@@ -226,7 +226,7 @@ For pull based query evaluation we would start at the root node of this tree and
 "pull" data up from its children. The most common approach to this is something called the [volcano model](https://cs-people.bu.edu/mathan/reading-groups/papers-classics/volcano.pdf). 
 Effectively all operators implement the same iterator interface establishing a `next` method. In this query evaluation model all parent operators rely on something coined a 
 `demand-driven` data flow. They will only call `next` when they need data from their children. The volcano model assumes that this is done a single record at a time, more modern OLAP systems
-such as [Apache Datafusion]() use a vectorized version of volcano batching records on each call to `next`.
+such as [Apache Datafusion](https://datafusion.apache.org/) use a vectorized version of volcano batching records on each call to `next`.
 
 So if we were to perform a logical pull query evaluation on our operators above we would see something like this
 
@@ -240,11 +240,11 @@ On to push based query evaluation!
 
 Since pull based query evaluation starts from the root node, one has to assume that push based also must start at the root node! Nope, just kidding. It starts from the leaf nodes 
 and pushes data up to the parent node. This would be considered a `data-driven` data flow. Push query evaluation will decouple nodes from each other theoretically allowing for 
-greater degrees of parallelism-since operators don't block now, [allowing operators to have better performance on NUMA architectures](), and [making for easier compiled query evaluation](). 
+greater degrees of parallelism-since operators don't block now, [allowing operators to have better performance on NUMA architectures](https://db.in.tum.de/~leis/papers/morsels.pdf), and [making for easier compiled query evaluation](https://vldb.org/pvldb/vol4/p539-neumann.pdf). 
 Our logical example above would just be flipped where we are now starting at the leaf nodes within the query evaluation. There is the added addition
 of a scheduling component now too. A big tradeoff of going this route is you lose a lot of simplicity afforded by iterator style query evaluation. 
 
-> [In a lot of instances performance difference is neglible between the two different methodologies](). 
+> [In a lot of instances performance difference is neglible between the two different methodologies](https://andrew.nerdnetworks.org/other/SIGMOD-2024-lamb.pdf). 
 
 ```
                           Scheduler
@@ -254,7 +254,7 @@ of a scheduling component now too. A big tradeoff of going this route is you los
 customers -> Select(products > 10) -> Project(name) -> Aggregate(name)
 ```
 
-The model of execution used as a baseline throughout this paper is the [Morsel driven]() execution model.
+The model of execution used as a baseline throughout this paper is the [morsel driven](https://db.in.tum.de/~leis/papers/morsels.pdf) execution model.
 
 ## Paritioning!
 
