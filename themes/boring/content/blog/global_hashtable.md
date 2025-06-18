@@ -303,7 +303,64 @@ of a scheduling component now too. A big tradeoff of going this route is you los
     V               V                     V                V
 customers -> Select(products > 10) -> Project(name) -> Aggregate(name)
 ```
-TODO: Show example of push query evaluation from DuckDB
+
+In DuckDB you can see this model outlined by starting at the `task_scheduler`. 
+
+```cpp
+void TaskScheduler::ExecuteForever(atomic<bool> *marker) {
+    // Cut off other code from this, we just care about the queue logic
+    // Scheduler continuously pulls tasks from queue and pushes them to workers
+    if (queue->q.try_dequeue(task)) {
+        auto execute_result = task->Execute(process_mode);  // PUSH task to worker
+
+        switch (execute_result) {
+        case TaskExecutionResult::TASK_NOT_FINISHED:
+            // Task needs more work - PUSH back to queue
+            queue->Enqueue(token, std::move(task));
+            break;
+        }
+    }
+}
+```
+
+`task->Execute` will actively create a pipeline from said task that we are executing
+
+```cpp
+TaskExecutionResult PipelineTask::ExecuteTask(TaskExecutionMode mode) {
+      if (!pipeline_executor) {
+          pipeline_executor = make_uniq<PipelineExecutor>(pipeline.GetClientContext(), pipeline);
+      }
+
+      // PUSH execution to pipeline executor
+      auto res = pipeline_executor->Execute(PARTIAL_CHUNK_COUNT);
+
+      switch (res) {
+      case PipelineExecuteResult::NOT_FINISHED:
+          return TaskExecutionResult::TASK_NOT_FINISHED;  // Will be re-pushed by scheduler
+      }
+}
+```
+
+The `pipeline_executor` will "push" data through the operators by building out a `Sink`
+
+```cpp
+OperatorResultType PipelineExecutor::ExecutePushInternal(DataChunk &input, ExecutionBudget &chunk_budget, idx_t initial_idx) {
+      // This loop continuously PUSHES input through the pipeline
+      do {
+          // PUSH data through operators and put result into 'final_chunk'
+          result = Execute(input, final_chunk, initial_idx);
+
+          // PUSH the result to the sink operator
+          auto sink_result = Sink(sink_chunk, sink_input);
+
+          if (sink_result == SinkResultType::BLOCKED) {
+              return OperatorResultType::BLOCKED;  // Back-pressure: stop pushing
+          }
+      } while (chunk_budget.Next());
+}
+```
+
+The sink is an interface for all physical operators in DuckDB and handles operator execution after the data is pushed to it from the scheduler. 
 
 The model of execution used as a baseline throughout this paper is the [morsel driven](https://db.in.tum.de/~leis/papers/morsels.pdf) execution model.
 
