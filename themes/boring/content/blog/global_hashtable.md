@@ -225,8 +225,8 @@ Which as represented by its operators would look something like this
 For pull based query evaluation we would start at the root node of this tree and have each operator 
 "pull" data up from its children. The most common approach to this is something called the [volcano model](https://cs-people.bu.edu/mathan/reading-groups/papers-classics/volcano.pdf). 
 Effectively all operators implement the same iterator interface establishing a `next` method. In this query evaluation model all parent operators rely on something coined a 
-`demand-driven` data flow. They will only call `next` when they need data from their children. The volcano model assumes that this is done a single record at a time, more modern OLAP systems
-such as [Apache Datafusion](https://datafusion.apache.org/) use a vectorized version of volcano batching records on each call to `next`.
+`demand-driven` data flow. The volcano model assumes that this is done a single record at a time, more modern OLAP systems
+such as [Apache Datafusion](https://datafusion.apache.org/) use a [vectorized](https://www.vldb.org/pvldb/vol11/p2209-kersten.pdf) version of volcano where they will batch records on each call to `next`.
 
 So if we were to perform a logical pull query evaluation on our operators above we would see something like this
 
@@ -235,6 +235,56 @@ Aggregate(name) <| Project(name) <| Select(products > 10) <| customers
 ```
 Where `Aggregate(name)` is emitting data from `Project(name)` which in turn is emtting data from `Select(products > 10)` and finally `Select(products > 10)` 
 is emitting data from `customers`. There are various other nuances to pull based query evaluation but this is the gist of it. 
+
+In Datafusion you can see this modeled like so throughout the codebase. Let's say we have a `projection` operator. This physical operator would implement the 
+`ExecutionPlan` trait, which has the method `execute` on it. As you can see we call `execute` for our input field. This call to `execute` is the "pull" where 
+we are attempting to call `execute` on child operators to pull data from them as input. 
+
+```rust
+impl ExecutionPlan for ProjectionExec {
+    // Cut off other trait methods
+    fn execute(
+        &self,
+        partition: usize,
+        context: Arc<TaskContext>,
+    ) -> Result<SendableRecordBatchStream> {
+        trace!("Start ProjectionExec::execute for partition {} of context session_id {} and task_id {:?}", partition, context.session_id(), context.task_id());
+        Ok(Box::pin(ProjectionStream {
+            schema: Arc::clone(&self.schema),
+            expr: self.expr.iter().map(|x| Arc::clone(&x.0)).collect(),
+            input: self.input.execute(partition, context)?,
+            baseline_metrics: BaselineMetrics::new(&self.metrics, partition),
+        }))
+    }
+}
+```
+
+This method returns a `ProjectionStream` which implements the `Stream` trait like so
+
+```rust
+impl Stream for ProjectionStream {
+    type Item = Result<RecordBatch>;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        let poll = self.input.poll_next_unpin(cx).map(|x| match x {
+            Some(Ok(batch)) => Some(self.batch_project(&batch)),
+            other => other,
+        });
+
+        self.baseline_metrics.record_poll(poll)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        // Same number of record batches
+        self.input.size_hint()
+    }
+}
+```
+
+As you can see `poll_next` is the "next" iterator within datafusion as outlined by the volcano model of query execution. 
 
 On to push based query evaluation! 
 
@@ -253,6 +303,7 @@ of a scheduling component now too. A big tradeoff of going this route is you los
     V               V                     V                V
 customers -> Select(products > 10) -> Project(name) -> Aggregate(name)
 ```
+TODO: Show example of push query evaluation from DuckDB
 
 The model of execution used as a baseline throughout this paper is the [morsel driven](https://db.in.tum.de/~leis/papers/morsels.pdf) execution model.
 
