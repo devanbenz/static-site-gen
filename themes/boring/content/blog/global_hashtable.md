@@ -366,5 +366,181 @@ The model of execution used as a baseline throughout this paper is the [morsel d
 
 ## Paritioning!
 
+Normally when you think about partitioning in database systems, the discussion is likely related to distributed data systems like MongoDB atlas where 
+data can be partitioned across [network/OS boundaries](https://www.mongodb.com/docs/manual/sharding/) living on seperate machines. Partitioning across
+machine boundaries is often known as *horizontal scaling* instead of *vertical scaling* where you throw more resources on to a single machine, you throw
+more machines in to the mix. This style of data partitioning can help each machine handles a subset of the overall workload, potentially providing better 
+efficiency than a single machine. The caveat is that it often requires a more complex architecture. 
+
+Partitioning is done in single node systems as well, inside systems like Postgres [tables](https://www.postgresql.org/docs/current/ddl-partitioning.html) 
+can be partitioned. This will effectively split what is one logical table in to smaller physical chunks. This enables better performance for large tables 
+especially if queries are consistently touching hot partitions allowing as much of the table as possible to fit in to a single index in memory. If large data 
+updates or deletes happen in a single partition a table scan can be done instead of having to use an index which can cause random reads across the table. There
+are many other benefits for partitioning large tables.
+
+And that leads us to the primary culprit of the paper in question; hash aggregation, specifically *partitioned* hash aggregation! Partitioning is not 
+only used at the machine and/or table level, partitioning is used *all the way down* right down to the core datastructures working on data within analytical
+database systems. Analytical systems store *a lot* of data, it is incredibly common to ask your analytics system for aggregated data, 
+[partitioned hash aggregation](https://arrow.apache.org/blog/2023/08/05/datafusion_fast_grouping/) is a way to group data together in these systems. 
+
+First, what is hash aggregation? Let's say we have the following SQL query
+
+```sql
+SELECT SUM(sales) FROM orders WHERE company_name = 'Planet Express';
+```
+
+In order to get the summation of our sales in each order a simplified algorith could be written like so
+
+```rust
+use std::collections::HashMap;
+
+fn main() {
+    let example_data: Vec<(String, i32)> = vec![
+        ("Planet Express".to_string(), 42),
+        ("Planet Express".to_string(), 73),
+        ("Wayne Enterprises".to_string(), 256),
+        ("Planet Express".to_string(), 91),
+        ("Planet Express".to_string(), 35),
+        ("Umbrella Corporation".to_string(), 444),
+        ("Weyland-Yutani".to_string(), 144),
+        ("Planet Express".to_string(), 52),
+        ("LexCorp".to_string(), 318)
+    ];
+    
+    let mut aggregation_map: HashMap<String, i32> = HashMap::new();
+    
+    // Iterator through tuples, computing summation for planet express orders
+    for data in example_data {
+        if &data.0 == "Planet Express" {
+            match aggregation_map.get(data.0.as_str()) {
+                Some(val) => {
+                    aggregation_map.insert(data.0, *val+data.1);
+                },
+                None => {
+                    aggregation_map.insert(data.0, data.1);
+                }
+            }
+        }
+    }
+    
+    // The computed sum will be 293
+    assert_eq!(aggregation_map.get("Planet Express"), Some(&293));
+}
+```
+
+Where we use a hash table to store the key we are looking up `Planet Express`. We can easily look up the current 
+value from our key `Planet Express` in O(1) time. After looking up the current value we can adjust it with a new value 
+and after we continue to iterator and perform that same operation over and over again we get the final total sum. 
+
+Hash aggregation is pretty standard and found in most introductory algorithms courses. 
 
 
+Now imagine instead of a single hash table you have multiple partitioned from the same larger data set. 
+Pulling `Figure 2` from the Apache Datafusion blog post on parallel group aggregation we see the following overview for a common approach to 
+partitioning data during hash aggregations. 
+
+```
+            ▲                        ▲
+            │                        │
+            │                        │
+            │                        │
+┌───────────────────────┐  ┌───────────────────┐
+│        GroupBy        │  │      GroupBy      │      Step 4
+│        (Final)        │  │      (Final)      │
+└───────────────────────┘  └───────────────────┘
+            ▲                        ▲
+            │                        │
+            └────────────┬───────────┘
+                         │
+                         │
+            ┌─────────────────────────┐
+            │       Repartition       │               Step 3
+            │         HASH(x)         │
+            └─────────────────────────┘
+                         ▲
+                         │
+            ┌────────────┴──────────┐
+            │                       │
+            │                       │
+ ┌────────────────────┐  ┌─────────────────────┐
+ │      GroupyBy      │  │       GroupBy       │      Step 2
+ │     (Partial)      │  │      (Partial)      │
+ └────────────────────┘  └─────────────────────┘
+            ▲                       ▲
+         ┌──┘                       └─┐
+         │                            │
+    .─────────.                  .─────────.
+ ,─'           '─.            ,─'           '─.
+;      Input      :          ;      Input      :      Step 1
+:    Stream 1     ;          :    Stream 2     ;
+ ╲               ╱            ╲               ╱
+  '─.         ,─'              '─.         ,─'
+     `───────'                    `───────'
+
+```
+
+By partitioning data and using multiple hash tables we can parallelize computation across multiple CPU cores, 
+have the potential for using vectorized loops for aggregation that a compiler can use SIMD instructions for, and 
+divide and conquer large data sets. 
+
+So let's take a look at some code and dissect the partitioned hash aggregation algorithms in use by Apache Datafusion and DuckDB.
+
+First up, Datafusion! We can get an overall idea of the core components of a datafusion hash aggregation by looking at a sample 
+of the `GroupedHashAggregateStream` struct. (I've cut off a few of the fields here just to show some of the core fields).
+
+```rust
+pub(crate) struct GroupedHashAggregateStream {
+    // .......
+
+    // ========================================================================
+    // STATE BUFFERS:
+    // These fields will accumulate intermediate results during the execution.
+    // ========================================================================
+    /// An interning store of group keys
+    group_values: Box<dyn GroupValues>,
+
+    /// Accumulators, one for each `AggregateFunctionExpr` in the query
+    ///
+    /// For example, if the query has aggregates, `SUM(x)`,
+    /// `COUNT(y)`, there will be two accumulators, each one
+    /// specialized for that particular aggregate and its input types
+    accumulators: Vec<Box<dyn GroupsAccumulator>>,
+
+    // .......
+}
+```
+
+`group_values` stores the actual hash table and `accumulators` stores the operation to do
+
+as shown from the Datafusion blog post above 
+
+```
+┌───────────────────────────────────┐     ┌───────────────────────┐
+│ ┌ ─ ─ ─ ─ ─ ┐  ┌─────────────────┐│     │ ┏━━━━━━━━━━━━━━━━━━━┓ │
+│                │                 ││     │ ┃  ┌──────────────┐ ┃ │
+│ │           │  │ ┌ ─ ─ ┐┌─────┐  ││     │ ┃  │┌───────────┐ │ ┃ │
+│                │    X   │  5  │  ││     │ ┃  ││  value1   │ │ ┃ │
+│ │           │  │ ├ ─ ─ ┤├─────┤  ││     │ ┃  │└───────────┘ │ ┃ │
+│                │    Q   │  9  │──┼┼──┐  │ ┃  │     ...      │ ┃ │
+│ │           │  │ ├ ─ ─ ┤├─────┤  ││  └──┼─╋─▶│              │ ┃ │
+│                │   ...  │ ... │  ││     │ ┃  │┌───────────┐ │ ┃ │
+│ │           │  │ ├ ─ ─ ┤├─────┤  ││     │ ┃  ││  valueN   │ │ ┃ │
+│                │    H   │  1  │  ││     │ ┃  │└───────────┘ │ ┃ │
+│ │           │  │ ├ ─ ─ ┤├─────┤  ││     │ ┃  │values: Vec<T>│ ┃ │
+│     Rows       │   ...  │ ... │  ││     │ ┃  └──────────────┘ ┃ │
+│ │           │  │ └ ─ ─ ┘└─────┘  ││     │ ┃                   ┃ │
+│  ─ ─ ─ ─ ─ ─   │                 ││     │ ┃ GroupsAccumulator ┃ │
+│                └─────────────────┘│     │ ┗━━━━━━━━━━━━━━━━━━━┛ │
+│                  Hash Table       │     │                       │
+│                                   │     │          ...          │
+└───────────────────────────────────┘     └───────────────────────┘
+  GroupState                               Accumulators
+
+
+Hash table value stores group_indexes     One  GroupsAccumulator
+and group values.                         per aggregate. Each
+                                          stores the state for
+Group values are stored either inline     *ALL* groups, typically
+in the hash table or in a single          using a native Vec<T>
+allocation using the arrow Row format
+```
