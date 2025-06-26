@@ -52,8 +52,8 @@ than cryptographic security. They are only meant to turn a key in to a hash valu
 
 Okay, great! The general design of a hash table is all laid out, but, what happens when we have two keys that hash to the same value? There's only so many numbers you can use without the table being too large. 
 
-*Collisions* can happen. And when they do happen, you need to account for them, much like everything else in software you need to have a fine balance of trade offs. One trade off you must decide is whether to use a `static hash table` or a `dynamic hash table`.
-A `static hash table` is much less complex than a `dynamic hash table`, it is effectively a fixed size array. When you need more storage you simply rebuild a larger hash table (usually double in size) from scratch. Easy to deal with generally, but very very *expensive*. 
+*Collisions* can happen. And when they do happen, you need to account for them, much like everything else in software you need to have a fine balance of trade-offs. One trade off you must decide is whether to use a `static hash table` or a `dynamic hash table`.
+A `static hash table` is much less complex than a `dynamic hash table`, it is effectively a fixed size array. When you need more storage you simply rebuild a larger hash table (usually double in size) from scratch. Easy to deal with generally, but very, very *expensive*. 
 A `dynamic hash table` will use operations to grow the hash table which can lead to some complexity but at least you don't need to start over from scratch. 
 
 The most common approach for a `static hash table` would be `linear probe hashing` (spoiler this is used in the paper), and for `dynamic hash tables` the most common approach is called `chained hashing`. 
@@ -191,11 +191,11 @@ impl HashTable {
 ```
 
 And thus with the magic of linked lists ([which rust actually states it's always better to use a `Vec` or `VecDeque`](https://doc.rust-lang.org/std/collections/struct.LinkedList.html)) you can build a 
-hash table that will grow without the need to resize. Of course there is a trade off here, do you make it larger to begin with, or do you make it smaller? Those are some design decisions that can be an
+hash table that will grow without the need to resize. Of course there is a trade-off here, do you make it larger to begin with, or do you make it smaller? Those are some design decisions that can be an
 exercise to the reader. 
 
 Hash table usage in database systems is vast, just a few things they are used for
-* Internal meta-data that keeps track of information about the database and it's system state (page tables, page directories).
+* Internal meta-data that keeps track of information about the database, and it's system state (page tables, page directories).
 * Core data storage; some structures that hold actual records in the DBMS will use hash tables. 
 * Temporary data storage; sometimes when performing a join or GROUP BY (hence this paper) you will need to build a hash table on the fly.
 * Table indices; used as additional structures to help locate specific records. 
@@ -208,7 +208,7 @@ Next up, lets discuss *query evaluation*. There are two dominate methodologies f
 2. Push based (morsel driven)
 
 I'll do my best to explain the core difference between these systems briefly, but if you have time I would suggest reading this [amazing blog post](https://justinjaffray.com/query-engines-push-vs.-pull/) by
-Justin Jaffrey. He gives a great explaination. 
+Justin Jaffrey. He gives a great explanation. 
 
 SQL queries are parsed and then transformed in to a tree (or DAG) of operators used to perform actions on data. The culmination of these actions will retrieve the specific records you need from your DBMS. 
 
@@ -226,17 +226,17 @@ For pull based query evaluation we would start at the root node of this tree and
 "pull" data up from its children. The most common approach to this is something called the [volcano model](https://cs-people.bu.edu/mathan/reading-groups/papers-classics/volcano.pdf). 
 Effectively all operators implement the same iterator interface establishing a `next` method. In this query evaluation model all parent operators rely on something coined a 
 `demand-driven` data flow. The volcano model assumes that this is done a single record at a time, more modern OLAP systems
-such as [Apache Datafusion](https://datafusion.apache.org/) use a [vectorized](https://www.vldb.org/pvldb/vol11/p2209-kersten.pdf) version of volcano where they will batch records on each call to `next`.
+such as [Apache DataFusion](https://datafusion.apache.org/) use a [vectorized](https://www.vldb.org/pvldb/vol11/p2209-kersten.pdf) version of volcano where they will batch records on each call to `next`.
 
 So if we were to perform a logical pull query evaluation on our operators above we would see something like this
 
 ```
 Aggregate(name) <| Project(name) <| Select(products > 10) <| customers
 ```
-Where `Aggregate(name)` is emitting data from `Project(name)` which in turn is emtting data from `Select(products > 10)` and finally `Select(products > 10)` 
+Where `Aggregate(name)` is emitting data from `Project(name)` which in turn is emitting data from `Select(products > 10)` and finally `Select(products > 10)` 
 is emitting data from `customers`. There are various other nuances to pull based query evaluation but this is the gist of it. 
 
-In Datafusion you can see this modeled like so throughout the codebase. Let's say we have a `projection` operator. This physical operator would implement the 
+In DataFusion you can see this modeled like so throughout the codebase. Let's say we have a `projection` operator. This physical operator would implement the 
 `ExecutionPlan` trait, which has the method `execute` on it. As you can see we call `execute` for our input field. This call to `execute` is the "pull" where 
 we are attempting to call `execute` on child operators to pull data from them as input. 
 
@@ -284,7 +284,7 @@ impl Stream for ProjectionStream {
 }
 ```
 
-As you can see `poll_next` is the "next" iterator within datafusion as outlined by the volcano model of query execution. 
+As you can see `poll_next` is the "next" iterator within DataFusion as outlined by the volcano model of query execution. 
 
 On to push based query evaluation! 
 
@@ -294,7 +294,7 @@ greater degrees of parallelism-since operators don't block now, [allowing operat
 Our logical example above would just be flipped where we are now starting at the leaf nodes within the query evaluation. There is the added addition
 of a scheduling component now too. A big tradeoff of going this route is you lose a lot of simplicity afforded by iterator style query evaluation. 
 
-> [In a lot of instances performance difference is neglible between the two different methodologies](https://andrew.nerdnetworks.org/other/SIGMOD-2024-lamb.pdf). 
+> [In a lot of instances performance difference is negligible between the two different methodologies](https://andrew.nerdnetworks.org/other/SIGMOD-2024-lamb.pdf). 
 
 ```
                           Scheduler
@@ -364,10 +364,10 @@ The sink is an interface for all physical operators in DuckDB and handles operat
 
 The model of execution used as a baseline throughout this paper is the [morsel driven](https://db.in.tum.de/~leis/papers/morsels.pdf) execution model.
 
-## Paritioning!
+## Partitioning!
 
 Normally when you think about partitioning in database systems, the discussion is likely related to distributed data systems like MongoDB atlas where 
-data can be partitioned across [network/OS boundaries](https://www.mongodb.com/docs/manual/sharding/) living on seperate machines. Partitioning across
+data can be partitioned across [network/OS boundaries](https://www.mongodb.com/docs/manual/sharding/) living on separate machines. Partitioning across
 machine boundaries is often known as *horizontal scaling* instead of *vertical scaling* where you throw more resources on to a single machine, you throw
 more machines in to the mix. This style of data partitioning can help each machine handles a subset of the overall workload, potentially providing better 
 efficiency than a single machine. The caveat is that it often requires a more complex architecture. 
@@ -379,7 +379,7 @@ updates or deletes happen in a single partition a table scan can be done instead
 are many other benefits for partitioning large tables.
 
 And that leads us to the primary culprit of the paper in question; hash aggregation, specifically *partitioned* hash aggregation! Partitioning is not 
-only used at the machine and/or table level, partitioning is used *all the way down* right down to the core datastructures working on data within analytical
+only used at the machine and/or table level, partitioning is used *all the way down* right to the core datastructures working on data within analytical
 database systems. Analytical systems store *a lot* of data, it is incredibly common to ask your analytics system for aggregated data, 
 [partitioned hash aggregation](https://arrow.apache.org/blog/2023/08/05/datafusion_fast_grouping/) is a way to group data together in these systems. 
 
@@ -389,7 +389,7 @@ First, what is hash aggregation? Let's say we have the following SQL query
 SELECT SUM(sales) FROM orders WHERE company_name = 'Planet Express';
 ```
 
-In order to get the summation of our sales in each order a simplified algorith could be written like so
+In order to get the summation of our sales in each order a simplified algorithm could be written like so
 
 ```rust
 use std::collections::HashMap;
@@ -429,14 +429,14 @@ fn main() {
 ```
 
 Where we use a hash table to store the key we are looking up `Planet Express`. We can easily look up the current 
-value from our key `Planet Express` in O(1) time. After looking up the current value we can adjust it with a new value 
+value from our key `Planet Express` in O(1) time. After looking up the current value we can adjust it with a new value, 
 and after we continue to iterator and perform that same operation over and over again we get the final total sum. 
 
 Hash aggregation is pretty standard and found in most introductory algorithms courses. 
 
 
 Now imagine instead of a single hash table you have multiple partitioned from the same larger data set. 
-Pulling `Figure 2` from the Apache Datafusion blog post on parallel group aggregation we see the following overview for a common approach to 
+Pulling `Figure 2` from the Apache DataFusion blog post on parallel group aggregation we see the following overview for a common approach to 
 partitioning data during hash aggregations. 
 
 ```
@@ -483,9 +483,9 @@ By partitioning data and using multiple hash tables we can parallelize computati
 have the potential for using vectorized loops for aggregation that a compiler can use SIMD instructions for, and 
 divide and conquer large data sets. 
 
-So let's take a look at some code and dissect the partitioned hash aggregation algorithms in use by Apache Datafusion and DuckDB.
+So let's take a look at some code and dissect the partitioned hash aggregation algorithms in use by Apache DataFusion and DuckDB.
 
-First up, Datafusion! We can get an overall idea of the core components of a datafusion hash aggregation by looking at a sample 
+First up, DataFusion! We can get an overall idea of the core components of a DataFusion hash aggregation by looking at a sample 
 of the `GroupedHashAggregateStream` struct. (I've cut off a few of the fields here just to show some of the core fields).
 
 ```rust
@@ -512,7 +512,7 @@ pub(crate) struct GroupedHashAggregateStream {
 
 `group_values` stores the actual hash table and `accumulators` stores the operation to do
 
-as shown from the Datafusion blog post above 
+as shown from the DataFusion blog post above 
 
 ```
 ┌───────────────────────────────────┐     ┌───────────────────────┐
