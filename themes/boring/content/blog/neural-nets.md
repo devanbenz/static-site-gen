@@ -5,7 +5,67 @@ date: 2026-03-07T18:50:58-06:00
 description: "From zero to training an mnist data set"
 ---
 
-## Picking Up the Deep Learning Book
+Starting out the year strong from one of my 2026 themes `Creativity` I have spent the past few months really deep diving in to AI/ML fundamentals. 
+I started off recommending the book [Build a Simple Deep Learning Library](https://zekcrates.quarto.pub/deep-learning-library/intro.html) in a book club hosted by a friend of mine. We previously
+read through `Database Internals`. It's an *excellent* read, I'm already familiar with databases and what makes them tick so it wasn't too much of a strain on the brain. This time around, my brain is understanding
+*HARD*. In this post I'm going to discuss building a neural network that can recognize hand-written digits (the "Hello, World!" of AI/ML), and the rabbit holes I had to dive in to along the way.
+
+### Picking Up the Deep Learning Book
+In early February the book club I'm in finished `Database Internals` and we were on to the next one. I had recommended [Build a Simple Deep Learning Library](https://zekcrates.quarto.pub/deep-learning-library/intro.html). 
+It was voted on as being the book to read, this did not last too long since the book itself requires a *TON* of pre-requisite information, not only that, the author did not do a very good job of explaining topics very well. 
+The host of our book club (who's special interest is ML) recommended a [neural network video series by 3Brown1Blue](https://www.youtube.com/watch?v=aircAruvnKk&list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi). We picked this up and 
+rolled with it. A goal that started out as reading a book about deep learning evolved in to a goal to just build an ML project from the ground up. 
+
+So I cracked my knuckles, got my hands on the keyboard and created a local Rust crate for my tensor library. The goal is to build something similar to `pytorch` and use that to train a basic neural network on MNIST data 
+to recognize hand-written digits. 
+
+> [MNIST]() is a training data-set of 10's of thousands hand-written digits that are labeled for training. In this case what we're doing is 'supervised machine learning'. We are 
+feeding data to the neural network in a controlled setting to ensure it can make predictions based off data it has never seen before. 
+
+#### What exactly is a Tensor?
+
+From [Wikipedia]():
+
+> In mathematics, a tensor is an algebraic object that describes a multilinear relationship between sets of algebraic objects associated with a vector space. Tensors may map between different objects such as vectors, scalars, and even other tensors.
+
+Great! If you're someone like me who only remembers high-school algebra, this makes zero sense. 
+
+In lay-programmer terms a `tensor` is basically a multi-dimensional array
+
+> Note: The `tensor` we are discussing is likely [different than tensors used in physics and pure mathematics.](https://stats.stackexchange.com/a/198395)
+
+You could visualize a basic tensor like so:
+```rust
+let tensor = vec![1, 2, 3, 4] // Order 1 tensor
+
+let tensor = vec![[1, 2, 3, 4],
+                  [1, 2, 3, 4]] // Order 2 tensor
+
+let tensor = vec![[[1, 2], [3, 4]],
+                   [[1, 2], [3, 4]]] // Order 3 tensor
+// ..... and so on
+
+```
+Assuming folks reading this are familiar with matrices and vectors, these two things are effectively generalizations of tensors.
+
+For my own tensor library I am using [ndarray]() as the inner data for each `Tensor` object. This n-dimensional array is paired with metadata about the container. This metadata contains the following information:
+
+- shape: (Depth, Width, Height) of the tensor data
+- dtype: The datatype of the tensor, this would usually be `float64` in my case.
+- device: The device to perform tensor operations on (usually CPU or GPU)
+
+Taking a look at my example vec's above you could think of the tensor shapes to be:
+
+- [4]
+- [4, 2]
+- [2, 2, 2]
+
+So how exactly are these used by a neural network to train and make predictions on data?
+
+#### Basic neural network design
+
+
+
 - Started with a book that builds a DL library from scratch (mid-February)
 - Worked through implementing `backward()` on a per-operation basis: Add, Mul, Sub, Pow
 - The `out_grad` concept crystallized here: it's the incoming gradient, and you multiply it by your local derivative at each step
