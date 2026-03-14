@@ -5,10 +5,7 @@ date: 2026-03-07T18:50:58-06:00
 description: "From zero to training an mnist data set"
 ---
 
-Starting out the year strong from one of my 2026 themes `Creativity` I have spent the past few months really deep diving in to AI/ML fundamentals. 
-I started off recommending the book [Build a Simple Deep Learning Library](https://zekcrates.quarto.pub/deep-learning-library/intro.html) in a book club hosted by a friend of mine. We previously
-read through `Database Internals`. It's an *excellent* read, I'm already familiar with databases and what makes them tick so it wasn't too much of a strain on the brain. This time around, my brain is understanding
-*HARD*. In this post I'm going to discuss building a neural network that can recognize hand-written digits (the "Hello, World!" of AI/ML), and the rabbit holes I had to dive in to along the way.
+In this post I'm going to discuss building a neural network that can recognize hand-written digits (the "Hello, World!" of AI/ML), and the rabbit holes I had to dive in to along the way.
 
 ### Picking Up the Deep Learning Book
 In early February the book club I'm in finished `Database Internals` and we were on to the next one. I had recommended [Build a Simple Deep Learning Library](https://zekcrates.quarto.pub/deep-learning-library/intro.html). 
@@ -22,7 +19,7 @@ to recognize hand-written digits.
 > [MNIST]() is a training data-set of 10's of thousands hand-written digits that are labeled for training. In this case what we're doing is 'supervised machine learning'. We are 
 feeding data to the neural network in a controlled setting to ensure it can make predictions based off data it has never seen before. 
 
-#### What exactly is a Tensor?
+### What exactly is a Tensor?
 
 From [Wikipedia]():
 
@@ -30,11 +27,11 @@ From [Wikipedia]():
 
 Great! If you're someone like me who only remembers high-school algebra, this makes zero sense. 
 
-In lay-programmer terms a `tensor` is basically a multi-dimensional array
+In lay-programmer terms a `tensor` is basically a multi-dimensional array with additional metadata.
 
 > Note: The `tensor` we are discussing is likely [different than tensors used in physics and pure mathematics.](https://stats.stackexchange.com/a/198395)
 
-You could visualize a basic tensor like so:
+You could visualize the inner data of a basic tensor like so:
 ```rust
 let tensor = vec![1, 2, 3, 4] // Order 1 tensor
 
@@ -48,17 +45,35 @@ let tensor = vec![[[1, 2], [3, 4]],
 ```
 Assuming folks reading this are familiar with matrices and vectors, these two things are effectively generalizations of tensors.
 
-For my own tensor library I am using [ndarray]() as the inner data for each `Tensor` object. This n-dimensional array is paired with metadata about the container. This metadata contains the following information:
+For my own tensor library I am using [ndarray]() as the inner data for each `Tensor` object. This n-dimensional array is paired with metadata about the container. The metadata contains the following information:
 
 - shape: (Depth, Width, Height) of the tensor data
 - dtype: The datatype of the tensor, this would usually be `float64` in my case.
 - device: The device to perform tensor operations on (usually CPU or GPU)
+- stride: How the tensor data is laid out in contiguous memory.
 
 Taking a look at my example vec's above you could think of the tensor shapes to be:
 
 - [4]
 - [4, 2]
 - [2, 2, 2]
+
+Since tensors are a mathematical concept we need a way to represent it physically in memory, that's where strides come in. 
+
+Say we have a tensor with the following shape `[2, 2]`. This, logically, is a simple matrix:
+
+$$
+\begin{pmatrix}
+1 & 2 \\
+3 & 4
+\end{pmatrix}
+$$
+
+It's stride would be calculated using `(h * w, w, 1)` in a 2D tensor we drop the `w * h` and just get `[2, 1]` for our stride. 
+
+In physical memory this would look something like the following (assuming we are using `i32` data types)
+
+
 
 So how exactly are these used by a neural network to train and make predictions on data?
 
