@@ -13,7 +13,7 @@ It was voted on as being the book to read, this did not last too long since the 
 The host of our book club (who's special interest is ML) recommended a [neural network video series by 3Brown1Blue](https://www.youtube.com/watch?v=aircAruvnKk&list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi). We picked this up and 
 rolled with it. A goal that started out as reading a book about deep learning evolved in to a goal to just build an ML project from the ground up. 
 
-So I cracked my knuckles, got my hands on the keyboard and created a local Rust crate for my tensor library. The goal is to build something similar to `pytorch` and use that to train a basic neural network on MNIST data 
+I cracked my knuckles, got my hands on the keyboard and created a local Rust crate for my tensor library. The goal is to build something similar to `pytorch` and use that to train a basic neural network on MNIST data 
 to recognize hand-written digits. 
 
 > [MNIST]() is a training data-set of 10's of thousands hand-written digits that are labeled for training. In this case what we're doing is 'supervised machine learning'. We are 
@@ -60,11 +60,11 @@ Taking a look at my example vec's above you could think of the tensor shapes to 
 
 Since tensors are a mathematical concept we need a way to represent it physically in memory, that's where strides come in. 
 
-Say we have a tensor with the following shape `[2, 2]`. This, logically, is a simple matrix:
+Say we have a tensor `[[1, 2], [3, 4]]` with the following shape `[2, 2]`. This, logically, is a simple matrix:
 
 $$
 \begin{pmatrix}
-1 & 2 \\
+1 & 2 \\\\
 3 & 4
 \end{pmatrix}
 $$
@@ -73,11 +73,38 @@ It's stride would be calculated using `(h * w, w, 1)` in a 2D tensor we drop the
 
 In physical memory this would look something like the following (assuming we are using `i32` data types)
 
+```
+[ 1 ] Address 0x10
+[ 2 ] Address 0x14
+[ 3 ] Address 0x18
+[ 4 ] Address 0x1C
+```
 
+For a 2D tensor we can perform a logical to physical lookup using `[i, j] = (i * stride[i] + j * stride[j])` so to perform a lookup for 3 
+
+$$
+\begin{pmatrix}
+1 & 2 \\\\
+\rightarrow 3 & 4
+\end{pmatrix}
+$$
+
+`[1, 0]` recall that our stride is `[2, 1]` so this operation would be `1 * 2 + 0 * 1 = 2` with 0 based array indexing we get memory address `0x18`.
+
+```
+[ 1 ] Address 0x10
+[ 2 ] Address 0x14
+-> [ 3 ] Address 0x18
+[ 4 ] Address 0x1C
+```
 
 So how exactly are these used by a neural network to train and make predictions on data?
 
-#### Basic neural network design
+### Neural Networks
+
+Before getting in to how tensors are used. Let's talk about neural networks themselves. This blog post will only 
+cover MLPs (Multi-layer perceptrons) arguably the simplest of all neural networks. There are various others, but, I don't know 
+very much about them. (Yet!)
 
 
 
