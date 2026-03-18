@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+body {
+	font-family: 'Victor Mono', monospace;
+}
+
 @layer utilities {
 	.prose-boring {
 		@apply
@@ -23,4 +27,12 @@
 		dark:prose-headings:bg-indigo-900
 		dark:prose-headings:text-slate-300
 	}
+}
+
+/* Let highlight.js themes control code block backgrounds */
+.prose-boring pre {
+	background: none;
+}
+.prose-boring pre code.hljs {
+	border-radius: 0;
 }

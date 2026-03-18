@@ -98,7 +98,7 @@ $$
 [ 4 ] Address 0x1C
 ```
 
-So how exactly are these used by a neural network to train and make predictions on data?
+So how and why are tensors used by a neural network?
 
 ### Neural Networks
 
