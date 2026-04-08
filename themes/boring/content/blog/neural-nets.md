@@ -8,10 +8,9 @@ description: "From zero to training an mnist data set"
 In this post I'm going to discuss building a neural network that can recognize hand-written digits (the "Hello, World!" of AI/ML), and the rabbit holes I had to dive in to along the way.
 
 ### Picking Up the Deep Learning Book
-In early February the book club I'm in finished `Database Internals` and we were on to the next one. I had recommended [Build a Simple Deep Learning Library](https://zekcrates.quarto.pub/deep-learning-library/intro.html). 
-It was voted on as being the book to read, this did not last too long since the book itself requires a *TON* of pre-requisite information, not only that, the author did not do a very good job of explaining topics very well. 
-The host of our book club (who's special interest is ML) recommended a [neural network video series by 3Brown1Blue](https://www.youtube.com/watch?v=aircAruvnKk&list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi). We picked this up and 
-rolled with it. A goal that started out as reading a book about deep learning evolved in to a goal to just build an ML project from the ground up. 
+In early February the reading group I'm in finished `Database Internals` and we were on to the next one. I had recommended [Build a Simple Deep Learning Library](https://zekcrates.quarto.pub/deep-learning-library/intro.html). 
+It was voted on as being the book to read, this did not last too long since the book itself requires a *TON* of pre-requisite information. A goal that started out as reading a book about 
+deep learning evolved in to a goal to just build an ML project from the ground up. Instead of a reading group--we had shifted somewhat in to a project group!
 
 I cracked my knuckles, got my hands on the keyboard and created a local Rust crate for my tensor library. The goal is to build something similar to `pytorch` and use that to train a basic neural network on MNIST data 
 to recognize hand-written digits. 
@@ -103,9 +102,39 @@ So how and why are tensors used by a neural network?
 ### Neural Networks
 
 Before getting in to how tensors are used. Let's talk about neural networks themselves. This blog post will only 
-cover MLPs (Multi-layer perceptrons) arguably the simplest of all neural networks. There are various others, but, I don't know 
-very much about them. (Yet!)
+cover MLPs (Multi-layer perceptrons) arguably the simplest of all neural networks. There are various others, such as Recurrent Neural Networks, Convulutional Neural Networks, and 
+probably the famous of all, Transformers, which make things like ChatGPT possible. 
 
+For anyone (which I assume is everyone reading this blog) familiar with programming we understand that the fundamental approach consists of mapping out inputs and outputs and writing the logic 
+to take those inputs and achieve said outputs, this is what creates a program. For machine learning, the approach is different. In ML you obtain examples of outputs and behavior, you write an 
+algorithm to map over all possible inputs in a training set to arrive at your desired "program". 
+
+```
+Programming -> Specification for desired behavior + logic to arrive there.
+
+Machine Learning -> Examples of desired behavior + training an algorithm to arrive there. 
+```
+
+You could very well write a "machine learning program" using the standard programming approach. For example, let's say we have an 8x8 pixel grid with a 0 drawn in it. 
+
+TODO: INSERT PIXEL 0 Here 
+
+Think about how we could use logic to figure out if this image is a 0? 
+
+TODO: INSERT QUESTIONING ANIME IMAGE
+
+Okay, enough thinking! 
+
+One way you could do this is to traverse the pixels from the center and "fill" in the pixel grid. If you cannot hit all the edge pixels... You know you got a zero! There are likely better 
+and more optimal ways to do something like this, but, it is possible to predict images using traditional programming approaches. Clearly, there are a billion edge cases and there is likely
+no way to write an optimal code base to do something like this that is reliable. *That is where machine learning approaches come in*. 
+
+Instead of writing up logic, we can just use some basic calculus and statistics approaches to "predict" whether the image is a 0 or not. The only difference is that now... we need a labeled data set 
+with a bunch of handwritten zeros. 
+
+#### Oops! All Math! 
+
+Dear reader, let me make an admission here. I have suffered from a case of the "Math Scaries" my entire life. 
 
 
 - Started with a book that builds a DL library from scratch (mid-February)
@@ -113,7 +142,6 @@ very much about them. (Yet!)
 - The `out_grad` concept crystallized here: it's the incoming gradient, and you multiply it by your local derivative at each step
 - **Revelation**: Backpropagation isn't magic — it's just applying the chain rule backwards through a graph of operations
 
-## Wait, Math! I Don't Know Math!
 - The book assumed calculus and linear algebra knowledge that wasn't there
 - Realized you can't fake-it-till-you-make-it through gradient descent without understanding what a gradient actually is
 - Detour into math fundamentals became the most valuable part of the journey
