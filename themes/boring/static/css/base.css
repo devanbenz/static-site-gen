@@ -3,30 +3,49 @@
 @tailwind utilities;
 
 body {
-	font-family: 'Victor Mono', monospace;
+	font-family: 'Berkeley Mono', monospace;
 }
 
 @layer utilities {
 	.prose-boring {
 		@apply
 		prose
-		prose-slate
 		prose-2xl
 		lg:prose-base
 		text-4xl
 		leading-relaxed
 		max-w-none
 		prose-pre:rounded-none
-		prose-headings:bg-amber-100
-		prose-headings:text-slate-800 
+		prose-headings:bg-rp-overlay
+		prose-headings:text-rp-text
 		prose-headings:font-normal
 		prose-headings:p-2
 		prose-headings:w-max
-		prose-headings:font-serif
+		prose-headings:font-mono
 		dark:prose-invert
 		dark:prose-headings:bg-indigo-900
 		dark:prose-headings:text-slate-300
 	}
+}
+
+/* Rosé Pine Dawn prose colors for light mode */
+.prose-boring {
+	--tw-prose-body: #575279;
+	--tw-prose-headings: #575279;
+	--tw-prose-lead: #797593;
+	--tw-prose-links: #286983;
+	--tw-prose-bold: #575279;
+	--tw-prose-counters: #9893a5;
+	--tw-prose-bullets: #9893a5;
+	--tw-prose-hr: #dfdad9;
+	--tw-prose-quotes: #575279;
+	--tw-prose-quote-borders: #dfdad9;
+	--tw-prose-captions: #9893a5;
+	--tw-prose-code: #b4637a;
+	--tw-prose-pre-code: inherit;
+	--tw-prose-pre-bg: inherit;
+	--tw-prose-th-borders: #dfdad9;
+	--tw-prose-td-borders: #f4ede8;
 }
 
 /* Let highlight.js themes control code block backgrounds */
