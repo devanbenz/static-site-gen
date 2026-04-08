@@ -28,6 +28,11 @@ async fn start_development_server() {
         .expect("cannot bind port 3000");
 
     axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("failed to listen for ctrl-c");
+        })
         .await
         .expect("cannot start axum development server");
 }
